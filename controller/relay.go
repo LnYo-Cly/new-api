@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -63,6 +64,62 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 		err = relay.GeminiHelper(c, info)
 	}
 	return err
+}
+
+func tryRefreshCodexCredentialAndRelay(
+	c *gin.Context,
+	channel *model.Channel,
+	relayInfo *relaycommon.RelayInfo,
+	relayFormat types.RelayFormat,
+	refreshRetriedChannels map[int]struct{},
+	relayOnce func() *types.NewAPIError,
+	currentErr *types.NewAPIError,
+) (*types.NewAPIError, bool) {
+	if !service.ShouldRefreshCodexCredentialAfterRelayError(channel, currentErr) {
+		return currentErr, false
+	}
+	if _, ok := refreshRetriedChannels[channel.Id]; ok {
+		return currentErr, false
+	}
+	refreshRetriedChannels[channel.Id] = struct{}{}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	_, refreshedChannel, refreshErr := service.RefreshCodexChannelCredential(ctx, channel.Id, service.CodexCredentialRefreshOptions{ResetCaches: true})
+	if refreshErr != nil {
+		logger.LogWarn(c, fmt.Sprintf("codex credential refresh before retry failed: channel_id=%d err=%s", channel.Id, refreshErr.Error()))
+		if service.IsCodexCredentialInvalidError(refreshErr) && channel.GetAutoBan() {
+			service.DisableChannel(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, "", channel.GetAutoBan()), refreshErr.Error())
+			model.InitChannelCache()
+			service.ResetProxyClientCache()
+		}
+		return currentErr, false
+	}
+	if refreshedChannel == nil {
+		return currentErr, false
+	}
+
+	setupErr := middleware.SetupContextForSelectedChannel(c, refreshedChannel, relayInfo.OriginModelName)
+	if setupErr != nil {
+		return setupErr, true
+	}
+
+	bodyStorage, bodyErr := common.GetBodyStorage(c)
+	if bodyErr != nil {
+		if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
+			return types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry()), true
+		}
+		return types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry()), true
+	}
+	c.Request.Body = io.NopCloser(bodyStorage)
+
+	logger.LogInfo(c, fmt.Sprintf("codex credential refreshed, retrying same channel: channel_id=%d", channel.Id))
+	newErr := relayOnce()
+	if newErr == nil {
+		return nil, true
+	}
+	return service.NormalizeViolationFeeError(newErr), true
 }
 
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
@@ -186,6 +243,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
+	codexRefreshRetriedChannels := make(map[int]struct{})
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
@@ -209,16 +267,19 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
-		switch relayFormat {
-		case types.RelayFormatOpenAIRealtime:
-			newAPIError = relay.WssHelper(c, relayInfo)
-		case types.RelayFormatClaude:
-			newAPIError = relay.ClaudeHelper(c, relayInfo)
-		case types.RelayFormatGemini:
-			newAPIError = geminiRelayHandler(c, relayInfo)
-		default:
-			newAPIError = relayHandler(c, relayInfo)
+		relayOnce := func() *types.NewAPIError {
+			switch relayFormat {
+			case types.RelayFormatOpenAIRealtime:
+				return relay.WssHelper(c, relayInfo)
+			case types.RelayFormatClaude:
+				return relay.ClaudeHelper(c, relayInfo)
+			case types.RelayFormatGemini:
+				return geminiRelayHandler(c, relayInfo)
+			default:
+				return relayHandler(c, relayInfo)
+			}
 		}
+		newAPIError = relayOnce()
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
@@ -226,6 +287,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
+		newAPIError, codexRefreshedAndRetried := tryRefreshCodexCredentialAndRelay(c, channel, relayInfo, relayFormat, codexRefreshRetriedChannels, relayOnce, newAPIError)
+		if newAPIError == nil {
+			relayInfo.LastError = nil
+			return
+		}
 		relayInfo.LastError = newAPIError
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
@@ -233,6 +299,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
+		}
+		if codexRefreshedAndRetried {
+			continue
 		}
 	}
 

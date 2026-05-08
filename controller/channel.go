@@ -829,11 +829,24 @@ type BatchUpdateChannelModelsFailure struct {
 	Message     string `json:"message"`
 }
 
+type BatchRefreshCodexCredentialsFailure struct {
+	ChannelID   int    `json:"channel_id"`
+	ChannelName string `json:"channel_name"`
+	Message     string `json:"message"`
+}
+
 type BatchUpdateChannelModelsResult struct {
 	UpdatedChannels int                               `json:"updated_channels"`
 	FailedChannels  int                               `json:"failed_channels"`
 	TotalModels     int                               `json:"total_models"`
 	Failures        []BatchUpdateChannelModelsFailure `json:"failures,omitempty"`
+}
+
+type BatchRefreshCodexCredentialsResult struct {
+	RefreshedChannels int                                   `json:"refreshed_channels"`
+	FailedChannels    int                                   `json:"failed_channels"`
+	DisabledChannels  int                                   `json:"disabled_channels"`
+	Failures          []BatchRefreshCodexCredentialsFailure `json:"failures,omitempty"`
 }
 
 func DeleteChannelBatch(c *gin.Context) {
@@ -858,6 +871,42 @@ func DeleteChannelBatch(c *gin.Context) {
 		"data":    len(channelBatch.Ids),
 	})
 	return
+}
+
+func BatchRefreshCodexChannelCredentials(c *gin.Context) {
+	channelBatch := ChannelBatch{}
+	if err := c.ShouldBindJSON(&channelBatch); err != nil || len(channelBatch.Ids) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "参数错误",
+		})
+		return
+	}
+
+	channels, err := model.GetChannelsByIds(channelBatch.Ids)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(channels) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "未找到渠道",
+		})
+		return
+	}
+
+	result := refreshBatchCodexChannelCredentials(c.Request.Context(), channels)
+	if result.RefreshedChannels > 0 || result.DisabledChannels > 0 {
+		model.InitChannelCache()
+		service.ResetProxyClientCache()
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    result,
+	})
 }
 
 func BatchUpdateChannelModels(c *gin.Context) {
@@ -956,6 +1005,82 @@ func buildBatchChannelModels(currentModels []string, mode string, models []strin
 	default:
 		return normalizeModelNames(models)
 	}
+}
+
+func refreshBatchCodexChannelCredentials(ctx context.Context, channels []*model.Channel) BatchRefreshCodexCredentialsResult {
+	const maxConcurrency = 8
+
+	resultCh := make(chan BatchRefreshCodexCredentialsResult, len(channels))
+	jobs := make(chan *model.Channel)
+	workerCount := min(maxConcurrency, len(channels))
+	var wg sync.WaitGroup
+
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for ch := range jobs {
+				resultCh <- refreshSingleCodexChannelCredential(ctx, ch)
+			}
+		}()
+	}
+
+	for _, ch := range channels {
+		if ch != nil {
+			jobs <- ch
+		}
+	}
+	close(jobs)
+	wg.Wait()
+	close(resultCh)
+
+	result := BatchRefreshCodexCredentialsResult{}
+	for item := range resultCh {
+		result.RefreshedChannels += item.RefreshedChannels
+		result.FailedChannels += item.FailedChannels
+		result.DisabledChannels += item.DisabledChannels
+		result.Failures = append(result.Failures, item.Failures...)
+	}
+	return result
+}
+
+func refreshSingleCodexChannelCredential(ctx context.Context, ch *model.Channel) BatchRefreshCodexCredentialsResult {
+	result := BatchRefreshCodexCredentialsResult{}
+	if ch == nil {
+		return result
+	}
+	fail := func(message string) BatchRefreshCodexCredentialsResult {
+		result.FailedChannels = 1
+		result.Failures = append(result.Failures, BatchRefreshCodexCredentialsFailure{
+			ChannelID:   ch.Id,
+			ChannelName: ch.Name,
+			Message:     message,
+		})
+		return result
+	}
+
+	if ch.Type != constant.ChannelTypeCodex {
+		return fail("channel type is not Codex")
+	}
+	if ch.ChannelInfo.IsMultiKey {
+		return fail("Codex OAuth multi-key channels are not supported for token refresh")
+	}
+
+	refreshCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	_, _, err := service.RefreshCodexChannelCredential(refreshCtx, ch.Id, service.CodexCredentialRefreshOptions{ResetCaches: false})
+	if err != nil {
+		result = fail(err.Error())
+		if service.IsCodexCredentialInvalidError(err) && ch.GetAutoBan() {
+			service.DisableChannel(*types.NewChannelError(ch.Id, ch.Type, ch.Name, ch.ChannelInfo.IsMultiKey, "", ch.GetAutoBan()), err.Error())
+			result.DisabledChannels = 1
+		}
+		return result
+	}
+
+	result.RefreshedChannels = 1
+	return result
 }
 
 func refreshBatchChannelModelsFromUpstream(channels []*model.Channel) BatchUpdateChannelModelsResult {

@@ -1,7 +1,14 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type Table } from '@tanstack/react-table'
-import { BrainCircuit, Power, PowerOff, Tag, Trash2 } from 'lucide-react'
+import {
+  BrainCircuit,
+  KeyRound,
+  Power,
+  PowerOff,
+  Tag,
+  Trash2,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,10 +27,12 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
+import { CHANNEL_TYPE_CODEX } from '../constants'
 import {
   handleBatchDelete,
   handleBatchDisable,
   handleBatchEnable,
+  handleBatchRefreshCodexCredentials,
   handleBatchSetTag,
 } from '../lib'
 import type { Channel } from '../types'
@@ -40,6 +49,7 @@ export function DataTableBulkActions<TData>(
   const queryClient = useQueryClient()
   const [showTagDialog, setShowTagDialog] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showRefreshCodexConfirm, setShowRefreshCodexConfirm] = useState(false)
   const [showModelsDialog, setShowModelsDialog] = useState(false)
   const [tagValue, setTagValue] = useState('')
 
@@ -53,6 +63,11 @@ export function DataTableBulkActions<TData>(
 
     return ids
   }, [])
+  const codexSelectedCount = selectedRows.reduce((count, row) => {
+    return (row.original as Channel).type === CHANNEL_TYPE_CODEX
+      ? count + 1
+      : count
+  }, 0)
 
   const handleClearSelection = () => {
     props.table.resetRowSelection()
@@ -81,6 +96,13 @@ export function DataTableBulkActions<TData>(
     })
   }
 
+  const handleRefreshCodexCredentials = () => {
+    handleBatchRefreshCodexCredentials(selectedIds, queryClient, () => {
+      setShowRefreshCodexConfirm(false)
+      handleClearSelection()
+    })
+  }
+
   return (
     <>
       <BulkActionsToolbar table={props.table} entityName='channel'>
@@ -102,6 +124,30 @@ export function DataTableBulkActions<TData>(
           </TooltipTrigger>
           <TooltipContent>
             <p>{t('Enable selected channels')}</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='outline'
+                size='icon'
+                onClick={() => setShowRefreshCodexConfirm(true)}
+                disabled={codexSelectedCount === 0}
+                className='size-8'
+                aria-label={t('Refresh selected Codex OAuth tokens')}
+                title={t('Refresh selected Codex OAuth tokens')}
+              />
+            }
+          >
+            <KeyRound />
+            <span className='sr-only'>
+              {t('Refresh selected Codex OAuth tokens')}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{t('Refresh selected Codex OAuth tokens')}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -228,6 +274,39 @@ export function DataTableBulkActions<TData>(
               {t('Cancel')}
             </Button>
             <Button onClick={handleSetTag}>{t('Set Tag')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Codex Token Refresh Confirmation Dialog */}
+      <Dialog
+        open={showRefreshCodexConfirm}
+        onOpenChange={setShowRefreshCodexConfirm}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('Refresh Codex OAuth Tokens?')}</DialogTitle>
+            <DialogDescription>
+              {t(
+                'This will refresh OAuth tokens for {{codex}} Codex channel(s) in {{total}} selected channel(s). Non-Codex or multi-key channels will be skipped with a failure result.',
+                {
+                  codex: codexSelectedCount,
+                  total: selectedIds.length,
+                }
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => setShowRefreshCodexConfirm(false)}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button onClick={handleRefreshCodexCredentials}>
+              {t('Refresh Tokens')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

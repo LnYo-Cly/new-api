@@ -4,6 +4,7 @@ import { getGroups as getUserGroups } from '@/features/users/api'
 import type {
   AddChannelRequest,
   BatchDeleteParams,
+  BatchRefreshCodexCredentialsResponse,
   BatchSetTagParams,
   BatchUpdateModelsParams,
   BatchUpdateModelsResponse,
@@ -161,6 +162,17 @@ export async function batchUpdateChannelModels(
   data: BatchUpdateModelsParams
 ): Promise<BatchUpdateModelsResponse> {
   const res = await api.post('/api/channel/batch/models', data)
+  return res.data
+}
+
+/**
+ * Batch refresh Codex OAuth credentials for selected channels
+ */
+export async function batchRefreshCodexCredentials(data: {
+  ids: number[]
+}): Promise<BatchRefreshCodexCredentialsResponse> {
+  const config: ExtendedApiConfig = { skipBusinessError: true }
+  const res = await api.post('/api/channel/batch/codex/refresh', data, config)
   return res.data
 }
 

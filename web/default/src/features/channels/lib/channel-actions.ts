@@ -3,6 +3,7 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import {
+  batchRefreshCodexCredentials,
   copyChannel,
   deleteChannel,
   testChannel,
@@ -401,10 +402,10 @@ export async function handleBatchDisable(
  * Batch set tag
  */
 export async function handleBatchSetTag(
-	ids: number[],
-	tag: string | null,
-	queryClient?: QueryClient,
-	onSuccess?: () => void
+  ids: number[],
+  tag: string | null,
+  queryClient?: QueryClient,
+  onSuccess?: () => void
 ): Promise<void> {
   if (ids.length === 0) {
     toast.error(i18next.t('No channels selected'))
@@ -418,9 +419,61 @@ export async function handleBatchSetTag(
       queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       onSuccess?.()
     }
-	} catch (_error) {
-		toast.error(i18next.t('Failed to set tag'))
-	}
+  } catch (_error) {
+    toast.error(i18next.t('Failed to set tag'))
+  }
+}
+
+/**
+ * Batch refresh Codex OAuth credentials.
+ */
+export async function handleBatchRefreshCodexCredentials(
+  ids: number[],
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  if (ids.length === 0) {
+    toast.error(i18next.t('No channels selected'))
+    return
+  }
+
+  try {
+    const response = await batchRefreshCodexCredentials({ ids })
+    if (!response.success || !response.data) {
+      toast.error(
+        response.message || i18next.t('Batch Codex token refresh failed')
+      )
+      return
+    }
+
+    const { refreshed_channels, failed_channels, disabled_channels } =
+      response.data
+    toast.success(
+      i18next.t(
+        'Codex token refresh completed: {{refreshed}} refreshed, {{failed}} failed, {{disabled}} disabled',
+        {
+          refreshed: refreshed_channels,
+          failed: failed_channels,
+          disabled: disabled_channels,
+        }
+      )
+    )
+    if (failed_channels > 0) {
+      toast.warning(
+        i18next.t('{{count}} Codex channel(s) failed to refresh', {
+          count: failed_channels,
+        })
+      )
+    }
+    queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+    onSuccess?.()
+  } catch (error) {
+    toast.error(
+      error instanceof Error
+        ? error.message
+        : i18next.t('Batch Codex token refresh failed')
+    )
+  }
 }
 
 // ============================================================================

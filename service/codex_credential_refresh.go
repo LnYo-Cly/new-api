@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/types"
 )
 
 type CodexCredentialRefreshOptions struct {
@@ -94,6 +96,7 @@ func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts Code
 	if err := model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Update("key", string(encoded)).Error; err != nil {
 		return nil, nil, err
 	}
+	ch.Key = string(encoded)
 
 	if opts.ResetCaches {
 		model.InitChannelCache()
@@ -101,4 +104,17 @@ func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts Code
 	}
 
 	return oauthKey, ch, nil
+}
+
+func ShouldRefreshCodexCredentialAfterRelayError(channel *model.Channel, err *types.NewAPIError) bool {
+	if channel == nil || err == nil {
+		return false
+	}
+	if channel.Type != constant.ChannelTypeCodex || channel.ChannelInfo.IsMultiKey {
+		return false
+	}
+	if err.StatusCode == http.StatusUnauthorized {
+		return true
+	}
+	return IsCodexCredentialInvalidError(err)
 }

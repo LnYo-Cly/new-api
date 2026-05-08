@@ -291,6 +291,21 @@ export interface BatchUpdateModelsResponse {
   }
 }
 
+export interface BatchRefreshCodexCredentialsResponse {
+  success: boolean
+  message?: string
+  data?: {
+    refreshed_channels: number
+    failed_channels: number
+    disabled_channels: number
+    failures?: Array<{
+      channel_id: number
+      channel_name: string
+      message: string
+    }>
+  }
+}
+
 export interface TagOperationParams {
   tag: string
   new_tag?: string
