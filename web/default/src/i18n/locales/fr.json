@@ -4421,6 +4421,23 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Apply system update?": "Appliquer la mise à jour système ?",
+    "Apply update": "Appliquer la mise à jour",
+    "Check for system updates": "Vérifier les mises à jour système",
+    "Command output": "Sortie de commande",
+    "Latest version": "Dernière version",
+    "Restart command failed": "Échec de la commande de redémarrage",
+    "Restart command submitted": "Commande de redémarrage envoyée",
+    "Restart service": "Redémarrer le service",
+    "Restart service?": "Redémarrer le service ?",
+    "Restarting...": "Redémarrage...",
+    "Self-update is disabled. Set SELF_UPDATE_ENABLED=true and configure update commands to enable these actions.": "La mise à jour automatique est désactivée. Définissez SELF_UPDATE_ENABLED=true et configurez les commandes de mise à jour pour activer ces actions.",
+    "Self-update is enabled, but one or more commands are not configured.": "La mise à jour automatique est activée, mais une ou plusieurs commandes ne sont pas configurées.",
+    "The server will run the configured SELF_RESTART_COMMAND and may become temporarily unavailable.": "Le serveur exécutera SELF_RESTART_COMMAND et pourra devenir temporairement indisponible.",
+    "The server will run the configured SELF_UPDATE_COMMAND. Continue only during a maintenance window.": "Le serveur exécutera SELF_UPDATE_COMMAND. Continuez uniquement pendant une fenêtre de maintenance.",
+    "Update command completed": "Commande de mise à jour terminée",
+    "Update command failed": "Échec de la commande de mise à jour",
+    "Updating...": "Mise à jour..."
   }
 }

@@ -4421,6 +4421,23 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Apply system update?": "应用系统更新？",
+    "Apply update": "应用更新",
+    "Check for system updates": "检查系统更新",
+    "Command output": "命令输出",
+    "Latest version": "最新版本",
+    "Restart command failed": "重启命令执行失败",
+    "Restart command submitted": "重启命令已提交",
+    "Restart service": "重启服务",
+    "Restart service?": "重启服务？",
+    "Restarting...": "正在重启...",
+    "Self-update is disabled. Set SELF_UPDATE_ENABLED=true and configure update commands to enable these actions.": "自更新已禁用。设置 SELF_UPDATE_ENABLED=true 并配置更新命令后可启用这些操作。",
+    "Self-update is enabled, but one or more commands are not configured.": "自更新已启用，但仍有更新或重启命令未配置。",
+    "The server will run the configured SELF_RESTART_COMMAND and may become temporarily unavailable.": "服务器将执行已配置的 SELF_RESTART_COMMAND，期间可能会暂时不可用。",
+    "The server will run the configured SELF_UPDATE_COMMAND. Continue only during a maintenance window.": "服务器将执行已配置的 SELF_UPDATE_COMMAND。请只在维护窗口内继续。",
+    "Update command completed": "更新命令执行完成",
+    "Update command failed": "更新命令执行失败",
+    "Updating...": "正在更新..."
   }
 }

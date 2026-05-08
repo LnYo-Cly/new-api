@@ -4421,6 +4421,23 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Apply system update?": "Áp dụng cập nhật hệ thống?",
+    "Apply update": "Áp dụng cập nhật",
+    "Check for system updates": "Kiểm tra cập nhật hệ thống",
+    "Command output": "Kết quả lệnh",
+    "Latest version": "Phiên bản mới nhất",
+    "Restart command failed": "Lệnh khởi động lại thất bại",
+    "Restart command submitted": "Đã gửi lệnh khởi động lại",
+    "Restart service": "Khởi động lại dịch vụ",
+    "Restart service?": "Khởi động lại dịch vụ?",
+    "Restarting...": "Đang khởi động lại...",
+    "Self-update is disabled. Set SELF_UPDATE_ENABLED=true and configure update commands to enable these actions.": "Tự cập nhật đang bị tắt. Đặt SELF_UPDATE_ENABLED=true và cấu hình lệnh cập nhật để bật các thao tác này.",
+    "Self-update is enabled, but one or more commands are not configured.": "Tự cập nhật đã bật, nhưng một hoặc nhiều lệnh chưa được cấu hình.",
+    "The server will run the configured SELF_RESTART_COMMAND and may become temporarily unavailable.": "Máy chủ sẽ chạy SELF_RESTART_COMMAND đã cấu hình và có thể tạm thời không khả dụng.",
+    "The server will run the configured SELF_UPDATE_COMMAND. Continue only during a maintenance window.": "Máy chủ sẽ chạy SELF_UPDATE_COMMAND đã cấu hình. Chỉ tiếp tục trong thời gian bảo trì.",
+    "Update command completed": "Lệnh cập nhật đã hoàn tất",
+    "Update command failed": "Lệnh cập nhật thất bại",
+    "Updating...": "Đang cập nhật..."
   }
 }

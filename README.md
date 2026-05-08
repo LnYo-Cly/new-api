@@ -324,6 +324,12 @@ docker run --name new-api -d --restart always \
 | `PYROSCOPE_MUTEX_RATE` | Pyroscope mutex sampling rate | `5` |
 | `PYROSCOPE_BLOCK_RATE` | Pyroscope block sampling rate | `5` |
 | `HOSTNAME` | Hostname tag for Pyroscope | `new-api` |
+| `SELF_UPDATE_ENABLED` | Enable root-only self-update actions in System Settings. Commands run in the same environment as the server process | `false` |
+| `SELF_UPDATE_REPOSITORY` | GitHub repository used by the update checker, in `owner/repo` format | `Calcium-Ion/new-api` |
+| `SELF_UPDATE_COMMAND` | Command executed when root applies an update | - |
+| `SELF_RESTART_COMMAND` | Command submitted when root restarts the service | - |
+| `SELF_UPDATE_TIMEOUT_SECONDS` | Update command timeout | `300` |
+| `SELF_RESTART_TIMEOUT_SECONDS` | Restart command timeout | `30` |
 
 📖 **Complete configuration:** [Environment Variables Documentation](https://docs.newapi.pro/en/docs/installation/config-maintenance/environment-variables)
 

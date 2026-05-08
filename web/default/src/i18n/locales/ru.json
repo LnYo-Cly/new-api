@@ -4421,6 +4421,23 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Apply system update?": "Применить обновление системы?",
+    "Apply update": "Применить обновление",
+    "Check for system updates": "Проверить обновления системы",
+    "Command output": "Вывод команды",
+    "Latest version": "Последняя версия",
+    "Restart command failed": "Не удалось выполнить команду перезапуска",
+    "Restart command submitted": "Команда перезапуска отправлена",
+    "Restart service": "Перезапустить сервис",
+    "Restart service?": "Перезапустить сервис?",
+    "Restarting...": "Перезапуск...",
+    "Self-update is disabled. Set SELF_UPDATE_ENABLED=true and configure update commands to enable these actions.": "Самообновление отключено. Установите SELF_UPDATE_ENABLED=true и настройте команды обновления, чтобы включить эти действия.",
+    "Self-update is enabled, but one or more commands are not configured.": "Самообновление включено, но одна или несколько команд не настроены.",
+    "The server will run the configured SELF_RESTART_COMMAND and may become temporarily unavailable.": "Сервер выполнит настроенную SELF_RESTART_COMMAND и может временно стать недоступным.",
+    "The server will run the configured SELF_UPDATE_COMMAND. Continue only during a maintenance window.": "Сервер выполнит настроенную SELF_UPDATE_COMMAND. Продолжайте только во время окна обслуживания.",
+    "Update command completed": "Команда обновления завершена",
+    "Update command failed": "Не удалось выполнить команду обновления",
+    "Updating...": "Обновление..."
   }
 }

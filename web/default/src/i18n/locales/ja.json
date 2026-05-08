@@ -4421,6 +4421,23 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Apply system update?": "システム更新を適用しますか？",
+    "Apply update": "更新を適用",
+    "Check for system updates": "システム更新を確認",
+    "Command output": "コマンド出力",
+    "Latest version": "最新バージョン",
+    "Restart command failed": "再起動コマンドに失敗しました",
+    "Restart command submitted": "再起動コマンドを送信しました",
+    "Restart service": "サービスを再起動",
+    "Restart service?": "サービスを再起動しますか？",
+    "Restarting...": "再起動中...",
+    "Self-update is disabled. Set SELF_UPDATE_ENABLED=true and configure update commands to enable these actions.": "セルフ更新は無効です。SELF_UPDATE_ENABLED=true を設定し、更新コマンドを構成するとこれらの操作を有効にできます。",
+    "Self-update is enabled, but one or more commands are not configured.": "セルフ更新は有効ですが、1 つ以上のコマンドが未設定です。",
+    "The server will run the configured SELF_RESTART_COMMAND and may become temporarily unavailable.": "サーバーは設定済みの SELF_RESTART_COMMAND を実行し、一時的に利用できなくなる場合があります。",
+    "The server will run the configured SELF_UPDATE_COMMAND. Continue only during a maintenance window.": "サーバーは設定済みの SELF_UPDATE_COMMAND を実行します。メンテナンス時間内にのみ続行してください。",
+    "Update command completed": "更新コマンドが完了しました",
+    "Update command failed": "更新コマンドに失敗しました",
+    "Updating...": "更新中..."
   }
 }
