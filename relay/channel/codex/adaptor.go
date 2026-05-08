@@ -162,10 +162,10 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	accountID := strings.TrimSpace(oauthKey.AccountID)
 
 	if accessToken == "" {
-		return errors.New("codex channel: access_token is required")
+		return types.NewError(errors.New("codex channel: access_token is required"), types.ErrorCodeChannelInvalidKey)
 	}
 	if accountID == "" {
-		return errors.New("codex channel: account_id is required")
+		return types.NewError(errors.New("codex channel: account_id is required"), types.ErrorCodeChannelInvalidKey)
 	}
 
 	req.Set("Authorization", "Bearer "+accessToken)

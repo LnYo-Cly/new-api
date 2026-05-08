@@ -94,9 +94,13 @@ func SyncChannelCache(frequency int) {
 }
 
 func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+	return GetRandomSatisfiedChannelExcluding(group, model, retry, nil)
+}
+
+func GetRandomSatisfiedChannelExcluding(group string, model string, retry int, excludedChannelIDs map[int]struct{}) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry)
+		return GetChannelExcluding(group, model, retry, excludedChannelIDs)
 	}
 
 	channelSyncLock.RLock()
@@ -116,6 +120,9 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 
 	if len(channels) == 1 {
+		if isChannelExcluded(channels[0], excludedChannelIDs) {
+			return nil, nil
+		}
 		if channel, ok := channelsIDM[channels[0]]; ok {
 			return channel, nil
 		}
@@ -124,6 +131,9 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 
 	uniquePriorities := make(map[int]bool)
 	for _, channelId := range channels {
+		if isChannelExcluded(channelId, excludedChannelIDs) {
+			continue
+		}
 		if channel, ok := channelsIDM[channelId]; ok {
 			uniquePriorities[int(channel.GetPriority())] = true
 		} else {
@@ -145,6 +155,9 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	var sumWeight = 0
 	var targetChannels []*Channel
 	for _, channelId := range channels {
+		if isChannelExcluded(channelId, excludedChannelIDs) {
+			continue
+		}
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriority() == targetPriority {
 				sumWeight += channel.GetWeight()
@@ -188,6 +201,14 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 	// return null if no channel is not found
 	return nil, errors.New("channel not found")
+}
+
+func isChannelExcluded(channelID int, excludedChannelIDs map[int]struct{}) bool {
+	if len(excludedChannelIDs) == 0 {
+		return false
+	}
+	_, ok := excludedChannelIDs[channelID]
+	return ok
 }
 
 func CacheGetChannel(id int) (*Channel, error) {

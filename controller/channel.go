@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -503,6 +504,15 @@ func RefreshCodexChannelCredential(c *gin.Context) {
 	oauthKey, ch, err := service.RefreshCodexChannelCredential(ctx, channelId, service.CodexCredentialRefreshOptions{ResetCaches: true})
 	if err != nil {
 		common.SysError("failed to refresh codex channel credential: " + err.Error())
+		if service.IsCodexCredentialInvalidError(err) {
+			if ch, getErr := model.GetChannelById(channelId, true); getErr == nil && ch != nil {
+				service.DisableChannel(*types.NewChannelError(ch.Id, ch.Type, ch.Name, ch.ChannelInfo.IsMultiKey, "", ch.GetAutoBan()), err.Error())
+				model.InitChannelCache()
+				service.ResetProxyClientCache()
+			}
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "Codex OAuth 凭证已失效，渠道已自动禁用，请重新授权"})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "刷新凭证失败，请稍后重试"})
 		return
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -404,6 +405,8 @@ func fetchCodexChannelUpstreamModelIDs(channel *model.Channel, baseURL string) (
 			if err != nil {
 				return nil, err
 			}
+		} else if service.IsCodexCredentialInvalidError(refreshErr) {
+			return nil, refreshErr
 		}
 	}
 
@@ -649,6 +652,9 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 				failedChannels++
 				failedChannelIDs = append(failedChannelIDs, channel.Id)
 				common.SysLog(fmt.Sprintf("upstream model update check failed: channel_id=%d channel_name=%s err=%v", channel.Id, channel.Name, err))
+				if service.IsCodexCredentialInvalidError(err) && channel.GetAutoBan() {
+					service.DisableChannel(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, "", channel.GetAutoBan()), err.Error())
+				}
 				continue
 			}
 			currentAddModels := normalizeModelNames(settings.UpstreamModelUpdateLastDetectedModels)
