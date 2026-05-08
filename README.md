@@ -335,6 +335,20 @@ docker run --name new-api -d --restart always \
 
 </details>
 
+### 🛠️ Self-Update Safety Notes
+
+The root-only self-update buttons in System Settings execute the commands configured by `SELF_UPDATE_COMMAND` and `SELF_RESTART_COMMAND`. The application adds an in-process operation lock, idempotent operation IDs, and a post-restart recovery check, but a single running instance is still not zero-downtime: active requests and streaming responses can be interrupted during restart.
+
+To avoid data loss during self-update or manual upgrades:
+
+- Use MySQL or PostgreSQL for production, or mount `/data` persistently when using SQLite.
+- Keep `SESSION_SECRET` and `CRYPTO_SECRET` fixed across restarts and redeployments.
+- Use persistent or external Redis when you rely on Redis-backed state.
+- Mount log directories if logs must survive container replacement.
+- Do not run destructive volume commands such as `docker compose down -v` during upgrades.
+
+For near-zero downtime, run multiple application instances behind a load balancer and update them with a rolling deployment. The built-in self-update flow is intended for safer single-instance maintenance, not seamless traffic draining.
+
 ### 🔧 Deployment Methods
 
 <details>

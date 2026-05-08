@@ -4438,6 +4438,15 @@
     "The server will run the configured SELF_UPDATE_COMMAND. Continue only during a maintenance window.": "The server will run the configured SELF_UPDATE_COMMAND. Continue only during a maintenance window.",
     "Update command completed": "Update command completed",
     "Update command failed": "Update command failed",
-    "Updating...": "Updating..."
+    "Updating...": "Updating...",
+    "A system {{action}} operation is already running.": "A system {{action}} operation is already running.",
+    "Restart command was submitted, but the service did not respond before the recovery check timed out.": "Restart command was submitted, but the service did not respond before the recovery check timed out.",
+    "Service is back online.": "Service is back online.",
+    "Service restart submitted. Waiting for service to recover...": "Service restart submitted. Waiting for service to recover...",
+    "The server will run the configured SELF_RESTART_COMMAND. Active requests and streaming responses may be interrupted; persisted data is safe only when database and data volumes are configured correctly.": "The server will run the configured SELF_RESTART_COMMAND. Active requests and streaming responses may be interrupted; persisted data is safe only when database and data volumes are configured correctly.",
+    "The server will run the configured SELF_UPDATE_COMMAND. Run it during a maintenance window; requests may be interrupted when you restart into the new version.": "The server will run the configured SELF_UPDATE_COMMAND. Run it during a maintenance window; requests may be interrupted when you restart into the new version.",
+    "Waiting for the service to come back online...": "Waiting for the service to come back online...",
+    "restart": "restart",
+    "update": "update"
   }
 }

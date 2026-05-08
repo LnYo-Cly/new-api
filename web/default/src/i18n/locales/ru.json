@@ -4438,6 +4438,15 @@
     "The server will run the configured SELF_UPDATE_COMMAND. Continue only during a maintenance window.": "Сервер выполнит настроенную SELF_UPDATE_COMMAND. Продолжайте только во время окна обслуживания.",
     "Update command completed": "Команда обновления завершена",
     "Update command failed": "Не удалось выполнить команду обновления",
-    "Updating...": "Обновление..."
+    "Updating...": "Обновление...",
+    "A system {{action}} operation is already running.": "Системная операция {{action}} уже выполняется.",
+    "Restart command was submitted, but the service did not respond before the recovery check timed out.": "Команда перезапуска отправлена, но сервис не ответил до истечения времени проверки восстановления.",
+    "Service is back online.": "Сервис снова в сети.",
+    "Service restart submitted. Waiting for service to recover...": "Перезапуск сервиса отправлен. Ожидание восстановления сервиса...",
+    "The server will run the configured SELF_RESTART_COMMAND. Active requests and streaming responses may be interrupted; persisted data is safe only when database and data volumes are configured correctly.": "Сервер выполнит настроенную SELF_RESTART_COMMAND. Активные запросы и потоковые ответы могут быть прерваны; постоянные данные безопасны только при правильной настройке базы данных и томов данных.",
+    "The server will run the configured SELF_UPDATE_COMMAND. Run it during a maintenance window; requests may be interrupted when you restart into the new version.": "Сервер выполнит настроенную SELF_UPDATE_COMMAND. Запускайте ее во время окна обслуживания; запросы могут быть прерваны при перезапуске на новую версию.",
+    "Waiting for the service to come back online...": "Ожидание возвращения сервиса в сеть...",
+    "restart": "перезапуска",
+    "update": "обновления"
   }
 }

@@ -25,15 +25,32 @@ import { SettingsSection } from '../components/settings-section'
 import {
   applySystemUpdate,
   checkSystemUpdate,
+  getSystemRuntimeStatus,
+  getSystemUpdateOperationStatus,
   restartSystem,
   type SystemUpdateCommandResult,
   type SystemUpdateInfo,
+  type SystemUpdateOperationStatus,
   type SystemUpdateReleaseInfo,
 } from './update-api'
 
 type UpdateCheckerSectionProps = {
   currentVersion?: string | null
   startTime?: number | null
+}
+
+const RESTART_RECOVERY_INTERVAL_MS = 2000
+const RESTART_RECOVERY_MAX_ATTEMPTS = 45
+
+function createSystemUpdateOperationId(action: 'update' | 'restart') {
+  const randomId =
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `${action}-${randomId}`
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
 export function UpdateCheckerSection({
@@ -45,10 +62,13 @@ export function UpdateCheckerSection({
   const [checking, setChecking] = useState(false)
   const [updating, setUpdating] = useState(false)
   const [restarting, setRestarting] = useState(false)
+  const [recoveryChecking, setRecoveryChecking] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [updateConfirmOpen, setUpdateConfirmOpen] = useState(false)
   const [restartConfirmOpen, setRestartConfirmOpen] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<SystemUpdateInfo | null>(null)
+  const [operationStatus, setOperationStatus] =
+    useState<SystemUpdateOperationStatus | null>(null)
   const [release, setRelease] = useState<SystemUpdateReleaseInfo | null>(null)
   const [commandResult, setCommandResult] =
     useState<SystemUpdateCommandResult | null>(null)
@@ -57,16 +77,27 @@ export function UpdateCheckerSection({
   const version = updateInfo?.current_version || currentVersion || t('Unknown')
   const latestVersion = updateInfo?.latest_version || t('Unknown')
   const isRoot = userRole === ROLE.SUPER_ADMIN
+  const activeOperation =
+    operationStatus?.running || updateInfo?.operation_status?.running
+      ? (operationStatus?.running
+          ? operationStatus
+          : updateInfo?.operation_status) || null
+      : null
+  const operationRunning = Boolean(activeOperation?.running)
+  const actionsDisabled =
+    operationRunning || updating || restarting || recoveryChecking
   const canApplyUpdate = Boolean(
     isRoot &&
     updateInfo?.self_update_enabled &&
     updateInfo?.update_command_configured &&
-    updateInfo?.has_update
+    updateInfo?.has_update &&
+    !operationRunning
   )
   const canRestart = Boolean(
     isRoot &&
     updateInfo?.self_update_enabled &&
-    updateInfo?.restart_command_configured
+    updateInfo?.restart_command_configured &&
+    !operationRunning
   )
 
   const handleCheckUpdates = async () => {
@@ -74,6 +105,7 @@ export function UpdateCheckerSection({
     try {
       const data = await checkSystemUpdate()
       setUpdateInfo(data)
+      setOperationStatus(data.operation_status ?? null)
       setRelease(data.release_info ?? null)
 
       if (!data.has_update) {
@@ -99,9 +131,11 @@ export function UpdateCheckerSection({
 
   const handleApplyUpdate = async () => {
     setUpdating(true)
+    const operationId = createSystemUpdateOperationId('update')
     try {
-      const result = await applySystemUpdate()
+      const result = await applySystemUpdate(operationId)
       setCommandResult(result)
+      await refreshOperationStatus()
       toast.success(t('Update command completed'))
       setUpdateConfirmOpen(false)
     } catch (error) {
@@ -115,18 +149,60 @@ export function UpdateCheckerSection({
 
   const handleRestart = async () => {
     setRestarting(true)
+    const operationId = createSystemUpdateOperationId('restart')
     try {
-      const result = await restartSystem()
+      const result = await restartSystem(operationId)
       setCommandResult(result)
-      toast.success(t('Restart command submitted'))
       setRestartConfirmOpen(false)
+      toast.success(
+        t('Service restart submitted. Waiting for service to recover...')
+      )
+      setRecoveryChecking(true)
+      const recovered = await waitForServiceRecovery()
+      if (recovered) {
+        toast.success(t('Service is back online.'))
+        await handleCheckUpdates()
+      } else {
+        toast.warning(
+          t(
+            'Restart command was submitted, but the service did not respond before the recovery check timed out.'
+          )
+        )
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : t('Restart command failed')
       toast.error(message)
     } finally {
       setRestarting(false)
+      setRecoveryChecking(false)
     }
+  }
+
+  const refreshOperationStatus = async () => {
+    if (!isRoot) return
+    try {
+      const status = await getSystemUpdateOperationStatus()
+      setOperationStatus(status)
+      setUpdateInfo((prev) =>
+        prev ? { ...prev, operation_status: status } : prev
+      )
+    } catch {
+      /* best-effort status refresh */
+    }
+  }
+
+  const waitForServiceRecovery = async () => {
+    for (let attempt = 0; attempt < RESTART_RECOVERY_MAX_ATTEMPTS; attempt++) {
+      await sleep(RESTART_RECOVERY_INTERVAL_MS)
+      try {
+        await getSystemRuntimeStatus()
+        return true
+      } catch {
+        /* retry until the service responds or the recovery window expires */
+      }
+    }
+    return false
   }
 
   const goToRelease = () => {
@@ -179,7 +255,7 @@ export function UpdateCheckerSection({
                 <Button
                   variant='secondary'
                   onClick={() => setUpdateConfirmOpen(true)}
-                  disabled={!canApplyUpdate || updating}
+                  disabled={!canApplyUpdate || actionsDisabled}
                 >
                   <DownloadIcon className='me-2 h-4 w-4' />
                   {updating ? t('Updating...') : t('Apply update')}
@@ -187,15 +263,32 @@ export function UpdateCheckerSection({
                 <Button
                   variant='outline'
                   onClick={() => setRestartConfirmOpen(true)}
-                  disabled={!canRestart || restarting}
+                  disabled={!canRestart || actionsDisabled}
                 >
                   <PowerIcon className='me-2 h-4 w-4' />
-                  {restarting ? t('Restarting...') : t('Restart service')}
+                  {restarting || recoveryChecking
+                    ? t('Restarting...')
+                    : t('Restart service')}
                 </Button>
               </>
             )}
           </div>
 
+          {isRoot && activeOperation?.running && (
+            <p className='text-muted-foreground text-sm'>
+              {t('A system {{action}} operation is already running.', {
+                action:
+                  activeOperation.action === 'restart'
+                    ? t('restart')
+                    : t('update'),
+              })}
+            </p>
+          )}
+          {isRoot && recoveryChecking && (
+            <p className='text-muted-foreground text-sm'>
+              {t('Waiting for the service to come back online...')}
+            </p>
+          )}
           {isRoot && updateInfo && !updateInfo.self_update_enabled && (
             <p className='text-muted-foreground text-sm'>
               {t(
@@ -278,7 +371,7 @@ export function UpdateCheckerSection({
                   setDialogOpen(false)
                   setUpdateConfirmOpen(true)
                 }}
-                disabled={!canApplyUpdate}
+                disabled={!canApplyUpdate || actionsDisabled}
               >
                 <DownloadIcon className='me-2 h-4 w-4' />
                 {t('Apply update')}
@@ -293,11 +386,11 @@ export function UpdateCheckerSection({
         onOpenChange={setUpdateConfirmOpen}
         title={t('Apply system update?')}
         desc={t(
-          'The server will run the configured SELF_UPDATE_COMMAND. Continue only during a maintenance window.'
+          'The server will run the configured SELF_UPDATE_COMMAND. Run it during a maintenance window; requests may be interrupted when you restart into the new version.'
         )}
         confirmText={updating ? t('Updating...') : t('Apply update')}
         isLoading={updating}
-        disabled={!canApplyUpdate}
+        disabled={!canApplyUpdate || actionsDisabled}
         handleConfirm={handleApplyUpdate}
       />
 
@@ -306,11 +399,11 @@ export function UpdateCheckerSection({
         onOpenChange={setRestartConfirmOpen}
         title={t('Restart service?')}
         desc={t(
-          'The server will run the configured SELF_RESTART_COMMAND and may become temporarily unavailable.'
+          'The server will run the configured SELF_RESTART_COMMAND. Active requests and streaming responses may be interrupted; persisted data is safe only when database and data volumes are configured correctly.'
         )}
         confirmText={restarting ? t('Restarting...') : t('Restart service')}
-        isLoading={restarting}
-        disabled={!canRestart}
+        isLoading={restarting || recoveryChecking}
+        disabled={!canRestart || actionsDisabled}
         handleConfirm={handleRestart}
       />
     </>

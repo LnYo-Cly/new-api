@@ -212,6 +212,7 @@ func SetApiRouter(router *gin.Engine) {
 		systemUpdateRoute.Use(middleware.RootAuth())
 		{
 			systemUpdateRoute.GET("/check", controller.CheckSystemUpdate)
+			systemUpdateRoute.GET("/status", controller.GetSystemUpdateOperationStatus)
 			systemUpdateRoute.POST("/apply", middleware.CriticalRateLimit(), controller.ApplySystemUpdate)
 			systemUpdateRoute.POST("/restart", middleware.CriticalRateLimit(), controller.RestartSystem)
 		}

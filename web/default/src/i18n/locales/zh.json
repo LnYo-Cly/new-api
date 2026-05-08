@@ -4438,6 +4438,15 @@
     "The server will run the configured SELF_UPDATE_COMMAND. Continue only during a maintenance window.": "服务器将执行已配置的 SELF_UPDATE_COMMAND。请只在维护窗口内继续。",
     "Update command completed": "更新命令执行完成",
     "Update command failed": "更新命令执行失败",
-    "Updating...": "正在更新..."
+    "Updating...": "正在更新...",
+    "A system {{action}} operation is already running.": "系统{{action}}操作正在执行。",
+    "Restart command was submitted, but the service did not respond before the recovery check timed out.": "重启命令已提交，但服务未在恢复检查超时前响应。",
+    "Service is back online.": "服务已恢复在线。",
+    "Service restart submitted. Waiting for service to recover...": "服务重启命令已提交，正在等待服务恢复...",
+    "The server will run the configured SELF_RESTART_COMMAND. Active requests and streaming responses may be interrupted; persisted data is safe only when database and data volumes are configured correctly.": "服务器将执行已配置的 SELF_RESTART_COMMAND。正在进行的请求和流式响应可能会中断；只有正确配置数据库和数据卷时，持久化数据才是安全的。",
+    "The server will run the configured SELF_UPDATE_COMMAND. Run it during a maintenance window; requests may be interrupted when you restart into the new version.": "服务器将执行已配置的 SELF_UPDATE_COMMAND。请在维护窗口内执行；重启进入新版本时，请求可能会中断。",
+    "Waiting for the service to come back online...": "正在等待服务恢复在线...",
+    "restart": "重启",
+    "update": "更新"
   }
 }

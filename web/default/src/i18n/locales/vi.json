@@ -4438,6 +4438,15 @@
     "The server will run the configured SELF_UPDATE_COMMAND. Continue only during a maintenance window.": "Máy chủ sẽ chạy SELF_UPDATE_COMMAND đã cấu hình. Chỉ tiếp tục trong thời gian bảo trì.",
     "Update command completed": "Lệnh cập nhật đã hoàn tất",
     "Update command failed": "Lệnh cập nhật thất bại",
-    "Updating...": "Đang cập nhật..."
+    "Updating...": "Đang cập nhật...",
+    "A system {{action}} operation is already running.": "Một thao tác {{action}} hệ thống đang chạy.",
+    "Restart command was submitted, but the service did not respond before the recovery check timed out.": "Lệnh khởi động lại đã được gửi, nhưng dịch vụ không phản hồi trước khi kiểm tra khôi phục hết thời gian.",
+    "Service is back online.": "Dịch vụ đã trực tuyến trở lại.",
+    "Service restart submitted. Waiting for service to recover...": "Đã gửi lệnh khởi động lại dịch vụ. Đang chờ dịch vụ khôi phục...",
+    "The server will run the configured SELF_RESTART_COMMAND. Active requests and streaming responses may be interrupted; persisted data is safe only when database and data volumes are configured correctly.": "Máy chủ sẽ chạy SELF_RESTART_COMMAND đã cấu hình. Các yêu cầu đang hoạt động và phản hồi streaming có thể bị gián đoạn; dữ liệu bền vững chỉ an toàn khi cơ sở dữ liệu và volume dữ liệu được cấu hình đúng.",
+    "The server will run the configured SELF_UPDATE_COMMAND. Run it during a maintenance window; requests may be interrupted when you restart into the new version.": "Máy chủ sẽ chạy SELF_UPDATE_COMMAND đã cấu hình. Hãy chạy trong thời gian bảo trì; yêu cầu có thể bị gián đoạn khi khởi động lại sang phiên bản mới.",
+    "Waiting for the service to come back online...": "Đang chờ dịch vụ trực tuyến trở lại...",
+    "restart": "khởi động lại",
+    "update": "cập nhật"
   }
 }

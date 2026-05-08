@@ -29,22 +29,25 @@ const (
 	systemUpdateDefaultTimeout    = 300
 	systemRestartDefaultTimeout   = 30
 	systemCommandOutputLimit      = 4000
+	systemOperationCacheTTL       = 5 * time.Minute
 )
 
 var (
 	systemUpdateHTTPClient = &http.Client{Timeout: 15 * time.Second}
 	systemUpdateMu         sync.Mutex
+	systemOperationStore   = newSystemUpdateOperationStore()
 )
 
 type SystemUpdateInfo struct {
-	CurrentVersion           string                   `json:"current_version"`
-	LatestVersion            string                   `json:"latest_version"`
-	HasUpdate                bool                     `json:"has_update"`
-	ReleaseInfo              *SystemUpdateReleaseInfo `json:"release_info,omitempty"`
-	Repository               string                   `json:"repository"`
-	SelfUpdateEnabled        bool                     `json:"self_update_enabled"`
-	UpdateCommandConfigured  bool                     `json:"update_command_configured"`
-	RestartCommandConfigured bool                     `json:"restart_command_configured"`
+	CurrentVersion           string                       `json:"current_version"`
+	LatestVersion            string                       `json:"latest_version"`
+	HasUpdate                bool                         `json:"has_update"`
+	ReleaseInfo              *SystemUpdateReleaseInfo     `json:"release_info,omitempty"`
+	Repository               string                       `json:"repository"`
+	SelfUpdateEnabled        bool                         `json:"self_update_enabled"`
+	UpdateCommandConfigured  bool                         `json:"update_command_configured"`
+	RestartCommandConfigured bool                         `json:"restart_command_configured"`
+	OperationStatus          *SystemUpdateOperationStatus `json:"operation_status"`
 }
 
 type SystemUpdateReleaseInfo struct {
@@ -65,8 +68,41 @@ type systemUpdateGitHubRelease struct {
 
 type SystemUpdateCommandResult struct {
 	Message     string `json:"message"`
+	OperationID string `json:"operation_id,omitempty"`
 	Output      string `json:"output,omitempty"`
 	NeedRestart bool   `json:"need_restart,omitempty"`
+}
+
+type SystemUpdateOperationStatus struct {
+	Running     bool   `json:"running"`
+	Action      string `json:"action,omitempty"`
+	OperationID string `json:"operation_id,omitempty"`
+	StartedAt   int64  `json:"started_at,omitempty"`
+}
+
+type systemUpdateOperationStore struct {
+	mu        sync.Mutex
+	running   *systemUpdateOperation
+	completed map[string]systemUpdateOperationCacheEntry
+}
+
+type systemUpdateOperation struct {
+	action      string
+	operationID string
+	key         string
+	startedAt   time.Time
+}
+
+type systemUpdateOperationCacheEntry struct {
+	result    *SystemUpdateCommandResult
+	errorText string
+	expiresAt time.Time
+}
+
+func newSystemUpdateOperationStore() *systemUpdateOperationStore {
+	return &systemUpdateOperationStore{
+		completed: make(map[string]systemUpdateOperationCacheEntry),
+	}
 }
 
 func CheckSystemUpdate(ctx context.Context) (*SystemUpdateInfo, error) {
@@ -115,7 +151,7 @@ func CheckSystemUpdate(ctx context.Context) (*SystemUpdateInfo, error) {
 	return info, nil
 }
 
-func ApplySystemUpdate(ctx context.Context) (*SystemUpdateCommandResult, error) {
+func ApplySystemUpdate(_ context.Context, operationID string) (*SystemUpdateCommandResult, error) {
 	if !isSystemSelfUpdateEnabled() {
 		return nil, errors.New("self update is not enabled")
 	}
@@ -123,18 +159,36 @@ func ApplySystemUpdate(ctx context.Context) (*SystemUpdateCommandResult, error) 
 	if cmd == "" {
 		return nil, errors.New("SELF_UPDATE_COMMAND is not configured")
 	}
-	output, err := runSystemCommand(ctx, cmd, common.GetEnvOrDefault(systemUpdateTimeoutEnv, systemUpdateDefaultTimeout))
+
+	cached, op, err := beginSystemUpdateOperation("update", operationID)
 	if err != nil {
 		return nil, err
 	}
-	return &SystemUpdateCommandResult{
+	if cached != nil {
+		return cached, nil
+	}
+
+	var result *SystemUpdateCommandResult
+	var runErr error
+	defer func() {
+		finishSystemUpdateOperation(op, result, runErr)
+	}()
+
+	output, err := runSystemCommand(context.Background(), cmd, common.GetEnvOrDefault(systemUpdateTimeoutEnv, systemUpdateDefaultTimeout))
+	if err != nil {
+		runErr = err
+		return nil, err
+	}
+	result = &SystemUpdateCommandResult{
 		Message:     "System update command completed",
+		OperationID: op.operationID,
 		Output:      output,
 		NeedRestart: strings.TrimSpace(os.Getenv(systemRestartCommandEnv)) != "",
-	}, nil
+	}
+	return result, nil
 }
 
-func RestartSystem(ctx context.Context) (*SystemUpdateCommandResult, error) {
+func RestartSystem(_ context.Context, operationID string) (*SystemUpdateCommandResult, error) {
 	if !isSystemSelfUpdateEnabled() {
 		return nil, errors.New("self update is not enabled")
 	}
@@ -142,21 +196,115 @@ func RestartSystem(ctx context.Context) (*SystemUpdateCommandResult, error) {
 	if cmd == "" {
 		return nil, errors.New("SELF_RESTART_COMMAND is not configured")
 	}
+
+	cached, op, err := beginSystemUpdateOperation("restart", operationID)
+	if err != nil {
+		return nil, err
+	}
+	if cached != nil {
+		return cached, nil
+	}
+
 	timeoutSeconds := common.GetEnvOrDefault(systemRestartTimeoutEnv, systemRestartDefaultTimeout)
-	go runSystemRestartCommand(cmd, timeoutSeconds)
-	return &SystemUpdateCommandResult{
-		Message: "System restart command submitted",
-	}, nil
+	result := &SystemUpdateCommandResult{
+		Message:     "System restart command submitted",
+		OperationID: op.operationID,
+	}
+	go runSystemRestartCommand(op, cmd, timeoutSeconds, result)
+	return result, nil
 }
 
-func runSystemRestartCommand(command string, timeoutSeconds int) {
+func beginSystemUpdateOperation(action string, operationID string) (*SystemUpdateCommandResult, *systemUpdateOperation, error) {
+	operationID = strings.TrimSpace(operationID)
+	if operationID == "" {
+		operationID = fmt.Sprintf("%s-%d", action, time.Now().UnixNano())
+	}
+	key := action + ":" + operationID
+
+	systemOperationStore.mu.Lock()
+	defer systemOperationStore.mu.Unlock()
+
+	now := time.Now()
+	for cachedKey, entry := range systemOperationStore.completed {
+		if now.After(entry.expiresAt) {
+			delete(systemOperationStore.completed, cachedKey)
+		}
+	}
+
+	if entry, ok := systemOperationStore.completed[key]; ok {
+		if entry.errorText != "" {
+			return nil, nil, errors.New(entry.errorText)
+		}
+		if entry.result == nil {
+			return nil, nil, errors.New("cached system operation result is empty")
+		}
+		resultCopy := *entry.result
+		return &resultCopy, nil, nil
+	}
+
+	if systemOperationStore.running != nil {
+		return nil, nil, fmt.Errorf("system %s operation is already running", systemOperationStore.running.action)
+	}
+
+	op := &systemUpdateOperation{
+		action:      action,
+		operationID: operationID,
+		key:         key,
+		startedAt:   now,
+	}
+	systemOperationStore.running = op
+	return nil, op, nil
+}
+
+func finishSystemUpdateOperation(op *systemUpdateOperation, result *SystemUpdateCommandResult, err error) {
+	if op == nil {
+		return
+	}
+
+	systemOperationStore.mu.Lock()
+	defer systemOperationStore.mu.Unlock()
+
+	if systemOperationStore.running != nil && systemOperationStore.running.key == op.key {
+		systemOperationStore.running = nil
+	}
+
+	entry := systemUpdateOperationCacheEntry{
+		expiresAt: time.Now().Add(systemOperationCacheTTL),
+	}
+	if err != nil {
+		entry.errorText = err.Error()
+	} else if result != nil {
+		resultCopy := *result
+		entry.result = &resultCopy
+	}
+	systemOperationStore.completed[op.key] = entry
+}
+
+func runSystemRestartCommand(op *systemUpdateOperation, command string, timeoutSeconds int, submittedResult *SystemUpdateCommandResult) {
 	time.Sleep(500 * time.Millisecond)
 	output, err := runSystemCommand(context.Background(), command, timeoutSeconds)
 	if err != nil {
 		common.SysError(fmt.Sprintf("system restart command failed: %s, output: %s", err.Error(), output))
+		finishSystemUpdateOperation(op, submittedResult, err)
 		return
 	}
 	common.SysLog("system restart command completed")
+	finishSystemUpdateOperation(op, submittedResult, nil)
+}
+
+func GetSystemUpdateOperationStatus() *SystemUpdateOperationStatus {
+	systemOperationStore.mu.Lock()
+	defer systemOperationStore.mu.Unlock()
+
+	if systemOperationStore.running == nil {
+		return &SystemUpdateOperationStatus{Running: false}
+	}
+	return &SystemUpdateOperationStatus{
+		Running:     true,
+		Action:      systemOperationStore.running.action,
+		OperationID: systemOperationStore.running.operationID,
+		StartedAt:   systemOperationStore.running.startedAt.Unix(),
+	}
 }
 
 func newSystemUpdateInfo(repository string) *SystemUpdateInfo {
@@ -167,6 +315,7 @@ func newSystemUpdateInfo(repository string) *SystemUpdateInfo {
 		SelfUpdateEnabled:        isSystemSelfUpdateEnabled(),
 		UpdateCommandConfigured:  strings.TrimSpace(os.Getenv(systemUpdateCommandEnv)) != "",
 		RestartCommandConfigured: strings.TrimSpace(os.Getenv(systemRestartCommandEnv)) != "",
+		OperationStatus:          GetSystemUpdateOperationStatus(),
 	}
 }
 
