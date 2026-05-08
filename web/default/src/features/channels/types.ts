@@ -264,6 +264,33 @@ export interface BatchSetTagParams {
   tag: string | null
 }
 
+export type BatchUpdateModelsMode =
+  | 'replace'
+  | 'append'
+  | 'remove'
+  | 'refresh_upstream'
+
+export interface BatchUpdateModelsParams {
+  ids: number[]
+  mode: BatchUpdateModelsMode
+  models?: string[]
+}
+
+export interface BatchUpdateModelsResponse {
+  success: boolean
+  message?: string
+  data?: {
+    updated_channels: number
+    failed_channels: number
+    total_models: number
+    failures?: Array<{
+      channel_id: number
+      channel_name: string
+      message: string
+    }>
+  }
+}
+
 export interface TagOperationParams {
   tag: string
   new_tag?: string

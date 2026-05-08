@@ -401,10 +401,10 @@ export async function handleBatchDisable(
  * Batch set tag
  */
 export async function handleBatchSetTag(
-  ids: number[],
-  tag: string | null,
-  queryClient?: QueryClient,
-  onSuccess?: () => void
+	ids: number[],
+	tag: string | null,
+	queryClient?: QueryClient,
+	onSuccess?: () => void
 ): Promise<void> {
   if (ids.length === 0) {
     toast.error(i18next.t('No channels selected'))
@@ -418,9 +418,9 @@ export async function handleBatchSetTag(
       queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       onSuccess?.()
     }
-  } catch (_error) {
-    toast.error(i18next.t('Failed to set tag'))
-  }
+	} catch (_error) {
+		toast.error(i18next.t('Failed to set tag'))
+	}
 }
 
 // ============================================================================

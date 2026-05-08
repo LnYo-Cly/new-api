@@ -5,6 +5,8 @@ import type {
   AddChannelRequest,
   BatchDeleteParams,
   BatchSetTagParams,
+  BatchUpdateModelsParams,
+  BatchUpdateModelsResponse,
   Channel,
   ChannelBalanceResponse,
   ChannelTestResponse,
@@ -149,6 +151,16 @@ export async function batchSetChannelTag(
   data: BatchSetTagParams
 ): Promise<{ success: boolean; message?: string; data?: number }> {
   const res = await api.post('/api/channel/batch/tag', data)
+  return res.data
+}
+
+/**
+ * Batch update models for selected channels
+ */
+export async function batchUpdateChannelModels(
+  data: BatchUpdateModelsParams
+): Promise<BatchUpdateModelsResponse> {
+  const res = await api.post('/api/channel/batch/models', data)
   return res.data
 }
 

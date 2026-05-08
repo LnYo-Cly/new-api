@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -806,6 +807,25 @@ type ChannelBatch struct {
 	Tag *string `json:"tag"`
 }
 
+type BatchUpdateChannelModelsRequest struct {
+	Ids    []int    `json:"ids"`
+	Mode   string   `json:"mode"`
+	Models []string `json:"models"`
+}
+
+type BatchUpdateChannelModelsFailure struct {
+	ChannelID   int    `json:"channel_id"`
+	ChannelName string `json:"channel_name"`
+	Message     string `json:"message"`
+}
+
+type BatchUpdateChannelModelsResult struct {
+	UpdatedChannels int                               `json:"updated_channels"`
+	FailedChannels  int                               `json:"failed_channels"`
+	TotalModels     int                               `json:"total_models"`
+	Failures        []BatchUpdateChannelModelsFailure `json:"failures,omitempty"`
+}
+
 func DeleteChannelBatch(c *gin.Context) {
 	channelBatch := ChannelBatch{}
 	err := c.ShouldBindJSON(&channelBatch)
@@ -828,6 +848,183 @@ func DeleteChannelBatch(c *gin.Context) {
 		"data":    len(channelBatch.Ids),
 	})
 	return
+}
+
+func BatchUpdateChannelModels(c *gin.Context) {
+	req := BatchUpdateChannelModelsRequest{}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.Ids) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "参数错误",
+		})
+		return
+	}
+
+	req.Mode = strings.ToLower(strings.TrimSpace(req.Mode))
+	if req.Mode == "" {
+		req.Mode = "replace"
+	}
+	switch req.Mode {
+	case "replace", "append", "remove", "refresh_upstream":
+	default:
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "不支持的批量模型操作",
+		})
+		return
+	}
+
+	if req.Mode != "refresh_upstream" {
+		req.Models = normalizeModelNames(req.Models)
+		if len(req.Models) == 0 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "模型列表不能为空",
+			})
+			return
+		}
+	}
+
+	channels, err := model.GetChannelsByIds(req.Ids)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(channels) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "未找到渠道",
+		})
+		return
+	}
+
+	var result BatchUpdateChannelModelsResult
+	if req.Mode == "refresh_upstream" {
+		result = refreshBatchChannelModelsFromUpstream(channels)
+	} else {
+		result, err = applyBatchChannelModels(channels, req.Mode, req.Models)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+
+	model.InitChannelCache()
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    result,
+	})
+}
+
+func applyBatchChannelModels(channels []*model.Channel, mode string, models []string) (BatchUpdateChannelModelsResult, error) {
+	result := BatchUpdateChannelModelsResult{}
+	for _, ch := range channels {
+		if ch == nil {
+			continue
+		}
+		nextModels := buildBatchChannelModels(ch.GetModels(), mode, models)
+		ch.Models = strings.Join(nextModels, ",")
+		if err := model.DB.Model(ch).Update("models", ch.Models).Error; err != nil {
+			return result, err
+		}
+		if err := ch.UpdateAbilities(nil); err != nil {
+			return result, err
+		}
+		result.UpdatedChannels++
+		result.TotalModels += len(nextModels)
+	}
+	return result, nil
+}
+
+func buildBatchChannelModels(currentModels []string, mode string, models []string) []string {
+	switch mode {
+	case "append":
+		return mergeModelNames(currentModels, models)
+	case "remove":
+		return subtractModelNames(currentModels, models)
+	default:
+		return normalizeModelNames(models)
+	}
+}
+
+func refreshBatchChannelModelsFromUpstream(channels []*model.Channel) BatchUpdateChannelModelsResult {
+	const maxConcurrency = 8
+
+	resultCh := make(chan BatchUpdateChannelModelsResult, len(channels))
+	jobs := make(chan *model.Channel)
+	workerCount := min(maxConcurrency, len(channels))
+	var wg sync.WaitGroup
+
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for ch := range jobs {
+				resultCh <- refreshSingleChannelModelsFromUpstream(ch)
+			}
+		}()
+	}
+
+	for _, ch := range channels {
+		if ch != nil {
+			jobs <- ch
+		}
+	}
+	close(jobs)
+	wg.Wait()
+	close(resultCh)
+
+	result := BatchUpdateChannelModelsResult{}
+	for item := range resultCh {
+		result.UpdatedChannels += item.UpdatedChannels
+		result.FailedChannels += item.FailedChannels
+		result.TotalModels += item.TotalModels
+		result.Failures = append(result.Failures, item.Failures...)
+	}
+	return result
+}
+
+func refreshSingleChannelModelsFromUpstream(ch *model.Channel) BatchUpdateChannelModelsResult {
+	result := BatchUpdateChannelModelsResult{}
+	if ch == nil {
+		return result
+	}
+
+	upstreamModels, err := fetchChannelUpstreamModelIDs(ch)
+	if err != nil {
+		result.FailedChannels = 1
+		result.Failures = append(result.Failures, BatchUpdateChannelModelsFailure{
+			ChannelID:   ch.Id,
+			ChannelName: ch.Name,
+			Message:     err.Error(),
+		})
+		return result
+	}
+
+	ch.Models = strings.Join(normalizeModelNames(upstreamModels), ",")
+	if err := model.DB.Model(ch).Update("models", ch.Models).Error; err != nil {
+		result.FailedChannels = 1
+		result.Failures = append(result.Failures, BatchUpdateChannelModelsFailure{
+			ChannelID:   ch.Id,
+			ChannelName: ch.Name,
+			Message:     err.Error(),
+		})
+		return result
+	}
+	if err := ch.UpdateAbilities(nil); err != nil {
+		result.FailedChannels = 1
+		result.Failures = append(result.Failures, BatchUpdateChannelModelsFailure{
+			ChannelID:   ch.Id,
+			ChannelName: ch.Name,
+			Message:     err.Error(),
+		})
+		return result
+	}
+
+	result.UpdatedChannels = 1
+	result.TotalModels = len(ch.GetModels())
+	return result
 }
 
 type PatchChannel struct {

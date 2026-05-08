@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type Table } from '@tanstack/react-table'
-import { Power, PowerOff, Tag, Trash2 } from 'lucide-react'
+import { BrainCircuit, Power, PowerOff, Tag, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
@@ -27,21 +27,23 @@ import {
   handleBatchSetTag,
 } from '../lib'
 import type { Channel } from '../types'
+import { BatchModelsDialog } from './dialogs/batch-models-dialog'
 
 interface DataTableBulkActionsProps<TData> {
   table: Table<TData>
 }
 
-export function DataTableBulkActions<TData>({
-  table,
-}: DataTableBulkActionsProps<TData>) {
+export function DataTableBulkActions<TData>(
+  props: DataTableBulkActionsProps<TData>
+) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [showTagDialog, setShowTagDialog] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showModelsDialog, setShowModelsDialog] = useState(false)
   const [tagValue, setTagValue] = useState('')
 
-  const selectedRows = table.getFilteredSelectedRowModel().rows
+  const selectedRows = props.table.getFilteredSelectedRowModel().rows
   const selectedIds = selectedRows.reduce<number[]>((ids, row) => {
     const id = (row.original as Channel).id
 
@@ -53,7 +55,7 @@ export function DataTableBulkActions<TData>({
   }, [])
 
   const handleClearSelection = () => {
-    table.resetRowSelection()
+    props.table.resetRowSelection()
   }
 
   const handleEnableAll = () => {
@@ -81,7 +83,7 @@ export function DataTableBulkActions<TData>({
 
   return (
     <>
-      <BulkActionsToolbar table={table} entityName='channel'>
+      <BulkActionsToolbar table={props.table} entityName='channel'>
         <Tooltip>
           <TooltipTrigger
             render={
@@ -100,6 +102,29 @@ export function DataTableBulkActions<TData>({
           </TooltipTrigger>
           <TooltipContent>
             <p>{t('Enable selected channels')}</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='outline'
+                size='icon'
+                onClick={() => setShowModelsDialog(true)}
+                className='size-8'
+                aria-label={t('Batch update selected channel models')}
+                title={t('Batch update selected channel models')}
+              />
+            }
+          >
+            <BrainCircuit />
+            <span className='sr-only'>
+              {t('Batch update selected channel models')}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{t('Batch update selected channel models')}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -231,6 +256,13 @@ export function DataTableBulkActions<TData>({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BatchModelsDialog
+        open={showModelsDialog}
+        onOpenChange={setShowModelsDialog}
+        selectedIds={selectedIds}
+        onCompleted={handleClearSelection}
+      />
     </>
   )
 }

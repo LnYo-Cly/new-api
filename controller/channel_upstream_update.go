@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -14,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/codex"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
@@ -265,6 +267,10 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		baseURL = channel.GetBaseURL()
 	}
 
+	if channel.Type == constant.ChannelTypeCodex {
+		return fetchCodexChannelUpstreamModelIDs(channel, baseURL)
+	}
+
 	if channel.Type == constant.ChannelTypeOllama {
 		key := strings.TrimSpace(strings.Split(channel.Key, "\n")[0])
 		models, err := ollama.FetchOllamaModels(baseURL, key)
@@ -343,6 +349,75 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return item.ID
 	})
 
+	return normalizeModelNames(ids), nil
+}
+
+func fetchCodexChannelUpstreamModelIDs(channel *model.Channel, baseURL string) ([]string, error) {
+	oauthKey, err := codex.ParseOAuthKey(strings.TrimSpace(channel.Key))
+	if err != nil {
+		return nil, err
+	}
+	accessToken := strings.TrimSpace(oauthKey.AccessToken)
+	accountID := strings.TrimSpace(oauthKey.AccountID)
+	if accessToken == "" {
+		return nil, fmt.Errorf("codex channel: access_token is required")
+	}
+	if accountID == "" {
+		return nil, fmt.Errorf("codex channel: account_id is required")
+	}
+
+	client, err := service.NewProxyHttpClient(channel.GetSetting().Proxy)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	statusCode, body, err := service.FetchCodexModels(ctx, client, baseURL, accessToken, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	if (statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden) &&
+		strings.TrimSpace(oauthKey.RefreshToken) != "" {
+		refreshCtx, refreshCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer refreshCancel()
+
+		refreshedKey, refreshedChannel, refreshErr := service.RefreshCodexChannelCredential(
+			refreshCtx,
+			channel.Id,
+			service.CodexCredentialRefreshOptions{ResetCaches: false},
+		)
+		if refreshErr == nil {
+			accessToken = strings.TrimSpace(refreshedKey.AccessToken)
+			accountID = strings.TrimSpace(refreshedKey.AccountID)
+			if accountID == "" {
+				accountID = strings.TrimSpace(oauthKey.AccountID)
+			}
+			if refreshedChannel != nil {
+				*channel = *refreshedChannel
+			}
+			ctx2, cancel2 := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel2()
+			statusCode, body, err = service.FetchCodexModels(ctx2, client, baseURL, accessToken, accountID)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("codex models upstream status: %d", statusCode)
+	}
+
+	ids, err := service.ParseCodexModelIDs(body)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("codex models response is empty")
+	}
 	return normalizeModelNames(ids), nil
 }
 
