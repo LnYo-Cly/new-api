@@ -176,6 +176,68 @@ func TestShouldSkipRetryAfterChannelAffinityFailure(t *testing.T) {
 	}
 }
 
+func TestClearCurrentChannelAffinityCache(t *testing.T) {
+	keySuffix := fmt.Sprintf("test-clear-current:%d", time.Now().UnixNano())
+	fullKey := channelAffinityCacheNamespace + ":" + keySuffix
+	cache := getChannelAffinityCache()
+	require.NoError(t, cache.SetWithTTL(keySuffix, 9527, time.Minute))
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{fullKey})
+	})
+
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		CacheKey:  fullKey,
+		RuleName:  "rule-skip-retry",
+		SkipRetry: true,
+	})
+	ctx.Set(ginKeyChannelAffinitySkipRetry, true)
+
+	require.True(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
+	require.True(t, ClearCurrentChannelAffinityCache(ctx))
+
+	_, found, err := cache.Get(keySuffix)
+	require.NoError(t, err)
+	require.False(t, found)
+	require.False(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
+}
+
+func TestRecordChannelAffinityLogsReboundInfo(t *testing.T) {
+	keySuffix := fmt.Sprintf("test-record-rebound:%d", time.Now().UnixNano())
+	fullKey := channelAffinityCacheNamespace + ":" + keySuffix
+	cache := getChannelAffinityCache()
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{fullKey})
+	})
+
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		CacheKey:       fullKey,
+		RuleName:       "rule-rebound",
+		SkipRetry:      true,
+		UsingGroup:     "default",
+		ModelName:      "gpt-5",
+		KeyFingerprint: "fp-rebound",
+	})
+	MarkChannelAffinityUsed(ctx, "default", 1001)
+	require.False(t, ClearCurrentChannelAffinityCacheFromChannel(ctx, 1001))
+	ctx.Set("channel_id", 2002)
+
+	RecordChannelAffinity(ctx, 1001)
+
+	channelID, found, err := cache.Get(keySuffix)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, 2002, channelID)
+
+	anyInfo, ok := ctx.Get(ginKeyChannelAffinityLogInfo)
+	require.True(t, ok)
+	info, ok := anyInfo.(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, true, info["cache_rebound"])
+	require.Equal(t, 1001, info["previous_channel_id"])
+	require.Equal(t, 2002, info["rebound_channel_id"])
+	require.Equal(t, "rule-rebound", info["rule_name"])
+}
+
 func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

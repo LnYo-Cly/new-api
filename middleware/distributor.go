@@ -104,11 +104,12 @@ func Distribute() func(c *gin.Context) {
 					if err == nil && preferred != nil {
 						if preferred.Status != common.ChannelStatusEnabled {
 							if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
-								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorAffinityChannelDisabled))
-								return
+								cleared := service.ClearCurrentChannelAffinityCacheFromChannel(c, preferred.Id)
+								common.SysLog(fmt.Sprintf("ignore disabled affinity channel #%d and continue scheduling: cache_cleared=%t", preferred.Id, cleared))
 							}
 						} else if skip, reason := service.ShouldSkipCodexChannelForScheduling(c, preferred); skip {
-							common.SysLog(fmt.Sprintf("skip codex affinity channel #%d for scheduling: %s", preferred.Id, reason))
+							cleared := service.ClearCurrentChannelAffinityCacheFromChannel(c, preferred.Id)
+							common.SysLog(fmt.Sprintf("ignore unschedulable codex affinity channel #%d and continue scheduling: %s, cache_cleared=%t", preferred.Id, reason, cleared))
 						} else if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 							autoGroups := service.GetUserAutoGroup(userGroup)

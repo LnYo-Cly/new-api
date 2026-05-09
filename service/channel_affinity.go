@@ -25,6 +25,7 @@ const (
 	ginKeyChannelAffinityMeta       = "channel_affinity_meta"
 	ginKeyChannelAffinityLogInfo    = "channel_affinity_log_info"
 	ginKeyChannelAffinitySkipRetry  = "channel_affinity_skip_retry_on_failure"
+	ginKeyChannelAffinityRebindFrom = "channel_affinity_rebind_from_channel_id"
 
 	channelAffinityCacheNamespace           = "new-api:channel_affinity:v1"
 	channelAffinityUsageCacheStatsNamespace = "new-api:channel_affinity_usage_cache_stats:v1"
@@ -367,6 +368,30 @@ func getChannelAffinityContext(c *gin.Context) (string, int, bool) {
 	return key, ttlSeconds, true
 }
 
+func ClearCurrentChannelAffinityCache(c *gin.Context) bool {
+	cacheKey, _, ok := getChannelAffinityContext(c)
+	if !ok {
+		return false
+	}
+	cache := getChannelAffinityCache()
+	deleted, err := cache.DeleteMany([]string{cacheKey})
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity cache delete failed: key=%s, err=%v", cacheKey, err))
+		return false
+	}
+	if c != nil {
+		c.Set(ginKeyChannelAffinitySkipRetry, false)
+	}
+	return deleted[cacheKey]
+}
+
+func ClearCurrentChannelAffinityCacheFromChannel(c *gin.Context, channelID int) bool {
+	if c != nil && channelID > 0 {
+		c.Set(ginKeyChannelAffinityRebindFrom, channelID)
+	}
+	return ClearCurrentChannelAffinityCache(c)
+}
+
 func getChannelAffinityMeta(c *gin.Context) (channelAffinityMeta, bool) {
 	anyMeta, ok := c.Get(ginKeyChannelAffinityMeta)
 	if !ok {
@@ -673,6 +698,22 @@ func AppendChannelAffinityAdminInfo(c *gin.Context, adminInfo map[string]interfa
 	adminInfo["channel_affinity"] = anyInfo
 }
 
+func AppendChannelAffinityRebindInfo(c *gin.Context, fromChannelID int, toChannelID int) {
+	if c == nil || fromChannelID <= 0 || toChannelID <= 0 || fromChannelID == toChannelID {
+		return
+	}
+	info := map[string]interface{}{}
+	if anyInfo, ok := c.Get(ginKeyChannelAffinityLogInfo); ok && anyInfo != nil {
+		if existing, ok := anyInfo.(map[string]interface{}); ok {
+			info = cloneStringAnyMap(existing)
+		}
+	}
+	info["cache_rebound"] = true
+	info["previous_channel_id"] = fromChannelID
+	info["rebound_channel_id"] = toChannelID
+	c.Set(ginKeyChannelAffinityLogInfo, info)
+}
+
 func RecordChannelAffinity(c *gin.Context, channelID int) {
 	if channelID <= 0 {
 		return
@@ -685,6 +726,10 @@ func RecordChannelAffinity(c *gin.Context, channelID int) {
 		if successChannelID := c.GetInt("channel_id"); successChannelID > 0 {
 			channelID = successChannelID
 		}
+	}
+	rebindFrom := 0
+	if c != nil {
+		rebindFrom = c.GetInt(ginKeyChannelAffinityRebindFrom)
 	}
 	cacheKey, ttlSeconds, ok := getChannelAffinityContext(c)
 	if !ok {
@@ -699,6 +744,11 @@ func RecordChannelAffinity(c *gin.Context, channelID int) {
 	cache := getChannelAffinityCache()
 	if err := cache.SetWithTTL(cacheKey, channelID, time.Duration(ttlSeconds)*time.Second); err != nil {
 		common.SysError(fmt.Sprintf("channel affinity cache set failed: key=%s, err=%v", cacheKey, err))
+		return
+	}
+	if rebindFrom > 0 && rebindFrom != channelID {
+		AppendChannelAffinityRebindInfo(c, rebindFrom, channelID)
+		common.SysLog(fmt.Sprintf("channel affinity cache rebound from channel #%d to channel #%d", rebindFrom, channelID))
 	}
 }
 
