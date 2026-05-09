@@ -17,12 +17,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const (
-	responsesStreamCompleted  = "response.completed"
-	responsesStreamFailed     = "response.failed"
-	responsesStreamIncomplete = "response.incomplete"
-)
-
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -84,7 +78,6 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
-	var hasTerminalEvent bool
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -97,8 +90,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 		sendResponsesStreamData(c, streamResponse, data)
 		switch streamResponse.Type {
-		case responsesStreamCompleted:
-			hasTerminalEvent = true
+		case "response.completed":
 			if streamResponse.Response != nil {
 				if streamResponse.Response.Usage != nil {
 					if streamResponse.Response.Usage.InputTokens != 0 {
@@ -120,8 +112,6 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 					c.Set("image_generation_call_size", streamResponse.Response.GetSize())
 				}
 			}
-		case responsesStreamFailed, responsesStreamIncomplete:
-			hasTerminalEvent = true
 		case "response.output_text.delta":
 			// 处理输出文本
 			responseTextBuilder.WriteString(streamResponse.Delta)
@@ -139,14 +129,6 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			}
 		}
 	})
-
-	if !hasTerminalEvent && c != nil && c.Request != nil && c.Request.Context().Err() == nil {
-		msg := "upstream stream closed before response.completed"
-		if info != nil && info.StreamStatus != nil {
-			info.StreamStatus.RecordError(msg)
-		}
-		sendResponsesStreamFailureEvent(c, msg)
-	}
 
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量

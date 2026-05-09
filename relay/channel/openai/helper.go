@@ -2,7 +2,6 @@ package openai
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -259,12 +258,4 @@ func sendResponsesStreamData(c *gin.Context, streamResponse dto.ResponsesStreamR
 		return
 	}
 	helper.ResponseChunkData(c, streamResponse, data)
-}
-
-func sendResponsesStreamFailureEvent(c *gin.Context, message string) {
-	if strings.TrimSpace(message) == "" {
-		message = "upstream stream closed before response.completed"
-	}
-	data := fmt.Sprintf(`{"type":"%s","error":{"message":%q,"type":"upstream_stream_error"}}`, responsesStreamFailed, message)
-	helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: responsesStreamFailed}, data)
 }
