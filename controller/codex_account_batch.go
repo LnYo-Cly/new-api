@@ -43,6 +43,10 @@ type BatchChannelTestResult struct {
 	TestedChannels int                       `json:"tested_channels"`
 	FailedChannels int                       `json:"failed_channels"`
 	Failures       []BatchChannelTestFailure `json:"failures,omitempty"`
+
+	codexStatusUpdatedChannels int
+	codexStatusFailedChannels  int
+	codexStatusInvalidChannels int
 }
 
 func BatchRefreshCodexChannelUsage(c *gin.Context) {
@@ -107,6 +111,10 @@ func BatchTestChannels(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), time.Duration(len(channels))*30*time.Second)
 	defer cancel()
 	result := testBatchChannels(ctx, channels)
+	if result.hasCodexStatusSideEffects() {
+		model.InitChannelCache()
+		service.ResetProxyClientCache()
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -283,6 +291,34 @@ func refreshSingleCodexChannelUsage(ctx context.Context, ch *model.Channel) Batc
 	return result
 }
 
+func refreshCodexStatusAfterChannelTest(ctx context.Context, ch *model.Channel) BatchCodexUsageResult {
+	if ch == nil || ch.Type != constant.ChannelTypeCodex || ch.ChannelInfo.IsMultiKey {
+		return BatchCodexUsageResult{}
+	}
+
+	result := refreshSingleCodexChannelUsage(ctx, ch)
+	if result.FailedChannels > 0 {
+		messages := make([]string, 0, len(result.Failures))
+		for _, failure := range result.Failures {
+			if strings.TrimSpace(failure.Message) != "" {
+				messages = append(messages, failure.Message)
+			}
+		}
+		common.SysError(fmt.Sprintf(
+			"failed to refresh codex account status after channel test: channel_id=%d failures=%s",
+			ch.Id,
+			strings.Join(messages, "; "),
+		))
+	}
+	return result
+}
+
+func (result BatchChannelTestResult) hasCodexStatusSideEffects() bool {
+	return result.codexStatusUpdatedChannels > 0 ||
+		result.codexStatusFailedChannels > 0 ||
+		result.codexStatusInvalidChannels > 0
+}
+
 func testBatchChannels(ctx context.Context, channels []*model.Channel) BatchChannelTestResult {
 	const maxConcurrency = 8
 
@@ -307,7 +343,7 @@ func testBatchChannels(ctx context.Context, channels []*model.Channel) BatchChan
 						}},
 					}
 				default:
-					resultCh <- testSingleBatchChannel(ch)
+					resultCh <- testSingleBatchChannel(ctx, ch)
 				}
 			}
 		}()
@@ -327,11 +363,14 @@ func testBatchChannels(ctx context.Context, channels []*model.Channel) BatchChan
 		result.TestedChannels += item.TestedChannels
 		result.FailedChannels += item.FailedChannels
 		result.Failures = append(result.Failures, item.Failures...)
+		result.codexStatusUpdatedChannels += item.codexStatusUpdatedChannels
+		result.codexStatusFailedChannels += item.codexStatusFailedChannels
+		result.codexStatusInvalidChannels += item.codexStatusInvalidChannels
 	}
 	return result
 }
 
-func testSingleBatchChannel(ch *model.Channel) BatchChannelTestResult {
+func testSingleBatchChannel(ctx context.Context, ch *model.Channel) BatchChannelTestResult {
 	result := BatchChannelTestResult{}
 	if ch == nil {
 		return result
@@ -340,6 +379,10 @@ func testSingleBatchChannel(ch *model.Channel) BatchChannelTestResult {
 	testRes := testChannel(ch, "", "", shouldUseStreamForAutomaticChannelTest(ch))
 	milliseconds := time.Since(tik).Milliseconds()
 	ch.UpdateResponseTime(milliseconds)
+	codexStatusResult := refreshCodexStatusAfterChannelTest(ctx, ch)
+	result.codexStatusUpdatedChannels = codexStatusResult.UpdatedChannels
+	result.codexStatusFailedChannels = codexStatusResult.FailedChannels
+	result.codexStatusInvalidChannels = codexStatusResult.InvalidChannels
 
 	if testRes.localErr != nil {
 		failure := BatchChannelTestFailure{

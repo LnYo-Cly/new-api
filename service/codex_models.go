@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 )
+
+const defaultCodexModelsClientVersion = "0.130.0"
 
 type CodexModel struct {
 	ID          string `json:"id,omitempty"`
@@ -41,7 +44,9 @@ func FetchCodexModels(
 		return 0, nil, fmt.Errorf("empty accountID")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, bu+"/backend-api/codex/models", nil)
+	values := url.Values{}
+	values.Set("client_version", strings.TrimSpace(common.GetEnvOrDefaultString("CODEX_MODELS_CLIENT_VERSION", defaultCodexModelsClientVersion)))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, bu+"/backend-api/codex/models?"+values.Encode(), nil)
 	if err != nil {
 		return 0, nil, err
 	}

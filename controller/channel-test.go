@@ -837,6 +837,13 @@ func TestChannel(c *gin.Context) {
 	tik := time.Now()
 	result := testChannel(channel, testModel, endpointType, isStream)
 	if result.localErr != nil {
+		codexStatusResult := refreshCodexStatusAfterChannelTest(c.Request.Context(), channel)
+		if codexStatusResult.UpdatedChannels > 0 ||
+			codexStatusResult.FailedChannels > 0 ||
+			codexStatusResult.InvalidChannels > 0 {
+			model.InitChannelCache()
+			service.ResetProxyClientCache()
+		}
 		resp := gin.H{
 			"success": false,
 			"message": result.localErr.Error(),
@@ -851,6 +858,13 @@ func TestChannel(c *gin.Context) {
 	tok := time.Now()
 	milliseconds := tok.Sub(tik).Milliseconds()
 	go channel.UpdateResponseTime(milliseconds)
+	codexStatusResult := refreshCodexStatusAfterChannelTest(c.Request.Context(), channel)
+	if codexStatusResult.UpdatedChannels > 0 ||
+		codexStatusResult.FailedChannels > 0 ||
+		codexStatusResult.InvalidChannels > 0 {
+		model.InitChannelCache()
+		service.ResetProxyClientCache()
+	}
 	consumedTime := float64(milliseconds) / 1000.0
 	if result.newAPIError != nil {
 		c.JSON(http.StatusOK, gin.H{

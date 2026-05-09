@@ -35,7 +35,6 @@ import {
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { MODEL_FETCHABLE_TYPES } from '../constants'
 import {
-  channelsQueryKeys,
   handleDeleteChannel,
   handleTestChannel,
   handleToggleChannelStatus,
@@ -76,9 +75,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     e.stopPropagation()
     setIsTesting(true)
     try {
-      await handleTestChannel(channel.id, undefined, () => {
-        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
-      })
+      await handleTestChannel(channel.id, undefined, queryClient)
     } finally {
       setIsTesting(false)
     }

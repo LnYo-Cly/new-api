@@ -132,6 +132,7 @@ export interface GetChannelsResponse {
     page: number
     page_size: number
     type_counts?: Record<string, number>
+    codex_status_counts?: Record<string, number>
   }
 }
 
@@ -142,6 +143,7 @@ export interface SearchChannelsResponse {
     items: Channel[]
     total: number
     type_counts?: Record<string, number>
+    codex_status_counts?: Record<string, number>
   }
 }
 
@@ -155,6 +157,7 @@ export interface ChannelTestResponse {
   success: boolean
   message?: string
   error_code?: string
+  time?: number
   data?: {
     response_time?: number
     error?: string

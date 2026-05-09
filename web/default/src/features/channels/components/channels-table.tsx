@@ -273,6 +273,7 @@ export function ChannelsTable() {
 
   const totalCount = data?.data?.total || 0
   const typeCounts = data?.data?.type_counts
+  const codexStatusCounts = data?.data?.codex_status_counts
 
   // Columns configuration
   const columns = useChannelsColumns()
@@ -365,6 +366,22 @@ export function ChannelsTable() {
     ]
   }, [t, typeCounts, typeFilter])
 
+  const codexStatusFilterOptions = useMemo(() => {
+    const counts = codexStatusCounts || {}
+    const totalStatuses = CODEX_ACCOUNT_STATUS_OPTIONS.reduce((sum, option) => {
+      if (option.value === 'all') return sum
+      return sum + (Number(counts[option.value]) || 0)
+    }, 0)
+
+    return CODEX_ACCOUNT_STATUS_OPTIONS.map((option) => ({
+      ...option,
+      count:
+        option.value === 'all'
+          ? totalStatuses
+          : Number(counts[option.value]) || 0,
+    }))
+  }, [codexStatusCounts])
+
   const groupFilterOptions = [
     { label: t('All Groups'), value: 'all' },
     ...groupOptions,
@@ -411,7 +428,7 @@ export function ChannelsTable() {
           {
             columnId: 'codex_status',
             title: t('Codex Status'),
-            options: [...CODEX_ACCOUNT_STATUS_OPTIONS],
+            options: codexStatusFilterOptions,
             singleSelect: true,
           },
           {

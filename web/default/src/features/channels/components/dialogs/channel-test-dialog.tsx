@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-table'
 import { Loader2, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -101,6 +102,7 @@ export function ChannelTestDialog({
   onOpenChange,
 }: ChannelTestDialogProps) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const { currentRow } = useChannels()
   const [endpointType, setEndpointType] = useState('auto')
   const [isStreamTest, setIsStreamTest] = useState(false)
@@ -202,6 +204,7 @@ export function ChannelTestDialog({
             endpointType: endpointType === 'auto' ? undefined : endpointType,
             stream: isStreamTest || undefined,
           },
+          queryClient,
           (success, responseTime, error, errorCode) => {
             updateTestResult(model, {
               status: success ? 'success' : 'error',
@@ -220,7 +223,14 @@ export function ChannelTestDialog({
         markModelTesting(model, false)
       }
     },
-    [currentRow, endpointType, isStreamTest, markModelTesting, updateTestResult]
+    [
+      currentRow,
+      endpointType,
+      isStreamTest,
+      markModelTesting,
+      queryClient,
+      updateTestResult,
+    ]
   )
 
   const handleBatchTest = useCallback(

@@ -189,6 +189,7 @@ export async function handleUpdateTagField(
 export async function handleTestChannel(
   id: number,
   options?: { testModel?: string; endpointType?: string; stream?: boolean },
+  queryClient?: QueryClient,
   onTestComplete?: (
     success: boolean,
     responseTime?: number,
@@ -211,9 +212,11 @@ export async function handleTestChannel(
     const response = await testChannel(id, payload)
     if (response.success) {
       toast.success(i18next.t(SUCCESS_MESSAGES.TESTED))
-      onTestComplete?.(true, response.data?.response_time)
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onTestComplete?.(true, response.data?.response_time ?? response.time)
     } else {
       toast.error(response.message || i18next.t(ERROR_MESSAGES.TEST_FAILED))
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       onTestComplete?.(false, undefined, response.message, response.error_code)
     }
   } catch (_error: unknown) {

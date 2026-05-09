@@ -77,6 +77,29 @@ func parseCodexAccountStatusFilter(c *gin.Context) string {
 	}
 }
 
+func codexAccountStatusFilterValues() []string {
+	return []string{
+		service.CodexAccountStatusAvailable,
+		service.CodexAccountStatusQuotaExhausted,
+		service.CodexAccountStatusCredentialInvalid,
+		service.CodexAccountStatusQueryFailed,
+		service.CodexAccountStatusNotChecked,
+	}
+}
+
+func normalizeCodexAccountStatusFilterValue(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case service.CodexAccountStatusAvailable,
+		service.CodexAccountStatusQuotaExhausted,
+		service.CodexAccountStatusCredentialInvalid,
+		service.CodexAccountStatusQueryFailed,
+		service.CodexAccountStatusNotChecked:
+		return strings.ToLower(strings.TrimSpace(status))
+	default:
+		return service.CodexAccountStatusNotChecked
+	}
+}
+
 func matchesCodexAccountStatusFilter(ch *model.Channel, status string) bool {
 	if status == "" {
 		return true
@@ -84,7 +107,44 @@ func matchesCodexAccountStatusFilter(ch *model.Channel, status string) bool {
 	if ch == nil || ch.Type != constant.ChannelTypeCodex {
 		return false
 	}
-	return service.GetCodexAccountStatusValue(ch.OtherInfo) == status
+	return normalizeCodexAccountStatusFilterValue(service.GetCodexAccountStatusValue(ch.OtherInfo)) == status
+}
+
+func emptyCodexAccountStatusCounts() map[string]int64 {
+	counts := make(map[string]int64)
+	for _, status := range codexAccountStatusFilterValues() {
+		counts[status] = 0
+	}
+	return counts
+}
+
+func countCodexAccountStatuses(channels []*model.Channel) map[string]int64 {
+	counts := emptyCodexAccountStatusCounts()
+	for _, ch := range channels {
+		if ch == nil || ch.Type != constant.ChannelTypeCodex {
+			continue
+		}
+		status := normalizeCodexAccountStatusFilterValue(service.GetCodexAccountStatusValue(ch.OtherInfo))
+		counts[status]++
+	}
+	return counts
+}
+
+func fetchChannelsForCodexAccountStatusCounts(statusFilter int, typeFilter int) ([]*model.Channel, error) {
+	if typeFilter >= 0 && typeFilter != constant.ChannelTypeCodex {
+		return nil, nil
+	}
+
+	query := model.DB.Model(&model.Channel{}).Where("type = ?", constant.ChannelTypeCodex)
+	if statusFilter == common.ChannelStatusEnabled {
+		query = query.Where("status = ?", common.ChannelStatusEnabled)
+	} else if statusFilter == 0 {
+		query = query.Where("status != ?", common.ChannelStatusEnabled)
+	}
+
+	channels := make([]*model.Channel, 0)
+	err := query.Omit("key").Find(&channels).Error
+	return channels, err
 }
 
 func clearChannelInfo(channel *model.Channel) {
@@ -115,6 +175,7 @@ func GetAllChannels(c *gin.Context) {
 
 	var total int64
 
+	codexStatusCountChannels := make([]*model.Channel, 0)
 	if enableTagMode {
 		tags, err := model.GetPaginatedTags(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 		if err != nil {
@@ -141,6 +202,7 @@ func GetAllChannels(c *gin.Context) {
 				if typeFilter >= 0 && ch.Type != typeFilter {
 					continue
 				}
+				codexStatusCountChannels = append(codexStatusCountChannels, ch)
 				if !matchesCodexAccountStatusFilter(ch, codexStatusFilter) {
 					continue
 				}
@@ -192,6 +254,12 @@ func GetAllChannels(c *gin.Context) {
 			}
 			channelData = filtered[startIdx:endIdx]
 		}
+
+		codexStatusCountChannels, err = fetchChannelsForCodexAccountStatusCounts(statusFilter, typeFilter)
+		if err != nil {
+			common.SysError("failed to get codex account status counts: " + err.Error())
+			codexStatusCountChannels = nil
+		}
 	}
 
 	for _, datum := range channelData {
@@ -216,12 +284,14 @@ func GetAllChannels(c *gin.Context) {
 	for _, r := range results {
 		typeCounts[r.Type] = r.Count
 	}
+	codexStatusCounts := countCodexAccountStatuses(codexStatusCountChannels)
 	common.ApiSuccess(c, gin.H{
-		"items":       channelData,
-		"total":       total,
-		"page":        pageInfo.GetPage(),
-		"page_size":   pageInfo.GetPageSize(),
-		"type_counts": typeCounts,
+		"items":               channelData,
+		"total":               total,
+		"page":                pageInfo.GetPage(),
+		"page_size":           pageInfo.GetPageSize(),
+		"type_counts":         typeCounts,
+		"codex_status_counts": codexStatusCounts,
 	})
 	return
 }
@@ -352,6 +422,26 @@ func SearchChannels(c *gin.Context) {
 		channelData = filtered
 	}
 
+	typeParam := c.Query("type")
+	typeFilter := -1
+	if typeParam != "" {
+		if tp, err := strconv.Atoi(typeParam); err == nil {
+			typeFilter = tp
+		}
+	}
+
+	codexStatusCountChannels := channelData
+	if typeFilter >= 0 {
+		filtered := make([]*model.Channel, 0, len(channelData))
+		for _, ch := range channelData {
+			if ch.Type == typeFilter {
+				filtered = append(filtered, ch)
+			}
+		}
+		codexStatusCountChannels = filtered
+	}
+	codexStatusCounts := countCodexAccountStatuses(codexStatusCountChannels)
+
 	if codexStatusFilter != "" {
 		filtered := make([]*model.Channel, 0, len(channelData))
 		for _, ch := range channelData {
@@ -366,14 +456,6 @@ func SearchChannels(c *gin.Context) {
 	typeCounts := make(map[int64]int64)
 	for _, channel := range channelData {
 		typeCounts[int64(channel.Type)]++
-	}
-
-	typeParam := c.Query("type")
-	typeFilter := -1
-	if typeParam != "" {
-		if tp, err := strconv.Atoi(typeParam); err == nil {
-			typeFilter = tp
-		}
 	}
 
 	if typeFilter >= 0 {
@@ -415,9 +497,10 @@ func SearchChannels(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"items":       pagedData,
-			"total":       total,
-			"type_counts": typeCounts,
+			"items":               pagedData,
+			"total":               total,
+			"type_counts":         typeCounts,
+			"codex_status_counts": codexStatusCounts,
 		},
 	})
 	return
