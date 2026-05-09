@@ -8,6 +8,7 @@ import { useSidebarConfig } from '@/hooks/use-sidebar-config'
 import { useSidebarData } from '@/hooks/use-sidebar-data'
 import { Sidebar, SidebarContent, SidebarRail } from '@/components/ui/sidebar'
 import { getNavGroupsForPath } from '../lib/workspace-registry'
+import type { NavGroup as NavGroupData, NavItem } from '../types'
 import { NavGroup } from './nav-group'
 
 /**
@@ -35,12 +36,12 @@ export function AppSidebar() {
   // Non-Admin users cannot see Admin navigation group
   const currentNavGroups = useMemo(() => {
     const isAdmin = userRole && userRole >= ROLE.ADMIN
-    return configFilteredNavGroups.filter((group) => {
-      if (group.id === 'admin') {
-        return isAdmin
-      }
+    const visibleGroups = configFilteredNavGroups.filter((group) => {
+      if (group.id === 'admin') return isAdmin
       return true
     })
+
+    return dedupeNavGroups(visibleGroups)
   }, [configFilteredNavGroups, userRole])
 
   return (
@@ -54,4 +55,36 @@ export function AppSidebar() {
       <SidebarRail />
     </Sidebar>
   )
+}
+
+function getNavItemKey(item: NavItem) {
+  if ('url' in item && item.url) return `url:${String(item.url)}`
+  if ('type' in item && item.type) return `type:${item.type}`
+  if ('items' in item && item.items) return `group:${item.title}`
+  return item.title
+}
+
+function dedupeNavGroups(groups: NavGroupData[]): NavGroupData[] {
+  const seenGroups = new Set<string>()
+
+  return groups
+    .map((group) => {
+      const seenItems = new Set<string>()
+      return {
+        ...group,
+        items: group.items.filter((item) => {
+          const key = getNavItemKey(item)
+          if (seenItems.has(key)) return false
+          seenItems.add(key)
+          return true
+        }),
+      }
+    })
+    .filter((group) => {
+      if (group.items.length === 0) return false
+      const key = group.id || group.title
+      if (seenGroups.has(key)) return false
+      seenGroups.add(key)
+      return true
+    })
 }

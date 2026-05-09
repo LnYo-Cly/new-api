@@ -13,10 +13,10 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
   const { t } = useTranslation()
   if (props.loading) {
     return (
-      <div className='overflow-hidden rounded-lg border'>
-        <div className='divide-border/60 grid grid-cols-3 divide-x'>
+      <div className='bg-card overflow-hidden rounded-lg border shadow-xs'>
+        <div className='divide-border/60 grid gap-0 sm:grid-cols-3 sm:divide-x'>
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className='px-3 py-3 sm:px-5 sm:py-4'>
+            <div key={i} className='px-3 py-3 sm:px-4 sm:py-3.5'>
               <Skeleton className='h-3.5 w-20' />
               <Skeleton className='mt-2 h-7 w-28' />
               <Skeleton className='mt-1.5 h-3.5 w-24' />
@@ -49,21 +49,21 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
   ]
 
   return (
-    <div className='overflow-hidden rounded-lg border'>
-      <div className='divide-border/60 grid grid-cols-3 divide-x'>
+    <div className='bg-card overflow-hidden rounded-lg border shadow-xs'>
+      <div className='divide-border/60 grid gap-0 sm:grid-cols-3 sm:divide-x'>
         {stats.map((item) => (
-          <div key={item.label} className='px-3 py-3 sm:px-5 sm:py-4'>
+          <div key={item.label} className='px-3 py-3 sm:px-4 sm:py-3.5'>
             <div className='flex items-center gap-2'>
               <item.icon className='text-muted-foreground/60 size-3.5 shrink-0' />
-              <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase'>
+              <div className='text-muted-foreground truncate text-[11px] font-medium tracking-wider uppercase'>
                 {item.label}
               </div>
             </div>
 
-            <div className='text-foreground mt-1.5 font-mono text-base font-bold tracking-tight break-all tabular-nums sm:mt-2 sm:text-2xl'>
+            <div className='text-foreground mt-1.5 font-mono text-xl font-semibold tracking-tight break-all tabular-nums sm:text-2xl'>
               {item.value}
             </div>
-            <div className='text-muted-foreground/60 mt-1 hidden text-xs md:block'>
+            <div className='text-muted-foreground/60 mt-0.5 hidden text-xs md:block'>
               {item.description}
             </div>
           </div>

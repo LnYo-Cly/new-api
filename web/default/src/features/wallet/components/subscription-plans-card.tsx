@@ -212,15 +212,15 @@ export function SubscriptionPlansCard({
 
   if (loading) {
     return (
-      <Card className='gap-0 overflow-hidden py-0'>
-        <CardHeader className='border-b p-3 !pb-3 sm:p-5 sm:!pb-5'>
+      <Card className='gap-0 overflow-hidden rounded-lg py-0 shadow-xs'>
+        <CardHeader className='border-b px-4 py-3 !pb-3'>
           <Skeleton className='h-6 w-32' />
         </CardHeader>
-        <CardContent className='space-y-4 p-3 sm:p-5'>
-          <Skeleton className='h-20 w-full' />
-          <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
+        <CardContent className='space-y-3 p-4'>
+          <Skeleton className='h-16 w-full' />
+          <div className='grid grid-cols-1 gap-3'>
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className='h-48 w-full' />
+              <Skeleton key={i} className='h-36 w-full' />
             ))}
           </div>
         </CardContent>
@@ -238,10 +238,13 @@ export function SubscriptionPlansCard({
         title={t('Subscription Plans')}
         description={t('Purchase a plan to enjoy model benefits')}
         icon={<Crown className='h-4 w-4' />}
-        contentClassName='space-y-4 sm:space-y-5'
+        className='rounded-lg shadow-xs'
+        headerClassName='px-4 py-3 !pb-3 sm:px-4 sm:py-3 sm:!pb-3'
+        contentClassName='space-y-3 p-4 sm:p-4'
+        titleClassName='text-base sm:text-lg'
       >
         {/* My subscriptions & billing preference */}
-        <div className='rounded-xl border p-3 sm:p-4'>
+        <div className='bg-muted/15 rounded-lg border p-3'>
           <div className='flex flex-wrap items-center justify-between gap-2.5 sm:gap-3'>
             <div className='flex min-w-0 flex-wrap items-center gap-2'>
               <span className='text-sm font-medium'>
@@ -308,7 +311,7 @@ export function SubscriptionPlansCard({
                 value={displayPref}
                 onValueChange={(v) => v !== null && handlePreferenceChange(v)}
               >
-                <SelectTrigger className='h-8 flex-1 text-xs sm:w-[140px] sm:flex-none'>
+                <SelectTrigger className='h-8 flex-1 rounded-lg text-xs sm:w-[140px] sm:flex-none'>
                   <SelectValue>
                     {getBillingPreferenceLabel(displayPref, t)}
                   </SelectValue>
@@ -341,7 +344,7 @@ export function SubscriptionPlansCard({
               <Button
                 variant='ghost'
                 size='icon'
-                className='h-8 w-8'
+                className='h-8 w-8 rounded-lg'
                 onClick={handleRefresh}
                 disabled={refreshing}
               >
@@ -369,7 +372,7 @@ export function SubscriptionPlansCard({
           {hasAny && (
             <>
               <Separator className='my-3' />
-              <div className='max-h-64 space-y-3 overflow-y-auto pr-1'>
+              <div className='max-h-52 space-y-2 overflow-y-auto pr-1'>
                 {allSubscriptions.map((sub) => {
                   const subscription = sub.subscription
                   const totalAmount = Number(subscription?.amount_total || 0)
@@ -389,11 +392,11 @@ export function SubscriptionPlansCard({
                   return (
                     <div
                       key={subscription?.id}
-                      className='bg-background rounded-md border p-3 text-xs'
+                      className='bg-background rounded-lg border p-3 text-xs'
                     >
-                      <div className='flex items-center justify-between'>
-                        <div className='flex items-center gap-2'>
-                          <span className='font-medium'>
+                      <div className='flex flex-wrap items-center justify-between gap-2'>
+                        <div className='flex min-w-0 items-center gap-2'>
+                          <span className='truncate font-medium'>
                             {planTitle
                               ? `${planTitle} · ${t('Subscription')} #${subscription?.id}`
                               : `${t('Subscription')} #${subscription?.id}`}
@@ -419,7 +422,7 @@ export function SubscriptionPlansCard({
                           )}
                         </div>
                         {isActive && (
-                          <span className='text-muted-foreground'>
+                          <span className='text-muted-foreground shrink-0'>
                             {t('{{count}} days remaining', {
                               count: remainDays,
                             })}
@@ -488,7 +491,7 @@ export function SubscriptionPlansCard({
 
         {/* Available plans grid */}
         {plans.length > 0 ? (
-          <div className='grid grid-cols-1 gap-3 2xl:grid-cols-2 2xl:gap-4'>
+          <div className='grid grid-cols-1 gap-3'>
             {plans.map((p, index) => {
               const plan = p?.plan
               if (!plan) return null
@@ -517,11 +520,11 @@ export function SubscriptionPlansCard({
                 <Card
                   key={plan.id}
                   className={cn(
-                    'transition-shadow hover:shadow-md',
-                    isPopular && 'border-primary/70 shadow-sm'
+                    'hover:border-foreground/40 rounded-lg py-0 transition-colors',
+                    isPopular && 'border-primary/60 bg-primary/5'
                   )}
                 >
-                  <CardContent className='flex h-full flex-col p-3.5 sm:p-4'>
+                  <CardContent className='flex h-full flex-col p-4'>
                     <div className='mb-2 flex items-start justify-between gap-3'>
                       <div className='min-w-0'>
                         <h4 className='truncate font-semibold'>
@@ -545,8 +548,8 @@ export function SubscriptionPlansCard({
                       )}
                     </div>
 
-                    <div className='py-2'>
-                      <span className='text-primary text-2xl font-bold'>
+                    <div className='py-1'>
+                      <span className='text-2xl font-semibold tracking-tight'>
                         ${price}
                       </span>
                     </div>
@@ -568,7 +571,11 @@ export function SubscriptionPlansCard({
                     {reached ? (
                       <Tooltip>
                         <TooltipTrigger render={<div />}>
-                          <Button variant='outline' className='w-full' disabled>
+                          <Button
+                            variant='outline'
+                            className='h-9 w-full rounded-lg'
+                            disabled
+                          >
                             {t('Limit Reached')}
                           </Button>
                         </TooltipTrigger>
@@ -579,7 +586,7 @@ export function SubscriptionPlansCard({
                     ) : (
                       <Button
                         variant='outline'
-                        className='w-full'
+                        className='h-9 w-full rounded-lg'
                         onClick={() => {
                           setSelectedPlan(p)
                           setPurchaseOpen(true)
