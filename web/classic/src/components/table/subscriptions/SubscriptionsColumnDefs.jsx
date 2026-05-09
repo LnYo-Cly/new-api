@@ -34,6 +34,12 @@ import { convertUSDToCurrency } from '../../../helpers/render';
 
 const { Text } = Typography;
 
+function formatInternalQuota(value) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
+    Number(value || 0),
+  );
+}
+
 function formatDuration(plan, t) {
   if (!plan) return '';
   const u = plan.duration_unit || 'month';
@@ -83,7 +89,7 @@ const renderPlanTitle = (text, record, t) => {
         </Text>
         <Text type='tertiary'>{t('总额度')}</Text>
         {plan?.total_amount > 0 ? (
-          <Tooltip content={`${t('原生额度')}：${plan.total_amount}`}>
+          <Tooltip content={`${t('内部额度单位')}：${formatInternalQuota(plan.total_amount)}`}>
             <Text>{renderQuota(plan.total_amount)}</Text>
           </Tooltip>
         ) : (
@@ -173,7 +179,7 @@ const renderTotalAmount = (text, record, t) => {
   return (
     <Text type={total > 0 ? 'secondary' : 'tertiary'}>
       {total > 0 ? (
-        <Tooltip content={`${t('原生额度')}：${total}`}>
+        <Tooltip content={`${t('内部额度单位')}：${formatInternalQuota(total)}`}>
           <span>{renderQuota(total)}</span>
         </Tooltip>
       ) : (

@@ -256,13 +256,37 @@ const getCodexAccountStatusConfig = (status, t) => {
 
 const formatCodexUsageWindow = (summary) => {
   const parts = [];
-  if (typeof summary?.five_hour_window?.used_percent === 'number') {
+  if (
+    typeof summary?.five_hour_window?.used_percent === 'number' &&
+    Number.isFinite(summary.five_hour_window.used_percent)
+  ) {
     parts.push(`5h ${summary.five_hour_window.used_percent}%`);
   }
-  if (typeof summary?.weekly_window?.used_percent === 'number') {
+  if (
+    typeof summary?.weekly_window?.used_percent === 'number' &&
+    Number.isFinite(summary.weekly_window.used_percent)
+  ) {
     parts.push(`7d ${summary.weekly_window.used_percent}%`);
   }
   return parts.join(' · ');
+};
+
+const formatCodexTimestamp = (value) => {
+  const timestamp = Number(value || 0);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return '-';
+  }
+  return timestamp2string(timestamp);
+};
+
+const getCodexWindowPercent = (summary, keys) => {
+  for (const key of keys) {
+    const value = summary?.[key]?.used_percent;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return `${value}%`;
+    }
+  }
+  return '-';
 };
 
 const renderCodexAccountStatus = (record, t) => {
@@ -273,32 +297,59 @@ const renderCodexAccountStatus = (record, t) => {
   const status = summary?.status || 'not_checked';
   const config = getCodexAccountStatusConfig(status, t);
   const usage = formatCodexUsageWindow(summary);
-  const checkedAt = summary?.checked_at ? timestamp2string(summary.checked_at) : '-';
-  const cooldownUntil = summary?.cooldown_until
-    ? timestamp2string(summary.cooldown_until)
-    : '-';
+  const checkedAt = formatCodexTimestamp(summary?.checked_at);
+  const cooldownUntil = formatCodexTimestamp(summary?.cooldown_until);
+  const upstreamStatus =
+    typeof summary?.upstream_status === 'number' &&
+    Number.isFinite(summary.upstream_status) &&
+    summary.upstream_status > 0
+      ? summary.upstream_status
+      : '-';
+  const planType = summary?.plan_type || '-';
+  const checkedAtText = checkedAt || '-';
+  const cooldownUntilText = cooldownUntil || '-';
+  const fiveHourUsage = getCodexWindowPercent(summary, [
+    'five_hour_window',
+    'fiveHourWindow',
+  ]);
+  const weeklyUsage = getCodexWindowPercent(summary, [
+    'weekly_window',
+    'weeklyWindow',
+  ]);
 
   return (
     <Tooltip
       content={
-        <div className='max-w-sm text-xs'>
+        <div
+          style={{
+            maxWidth: 360,
+            color: 'var(--semi-color-text-0)',
+            fontSize: 12,
+            lineHeight: 1.7,
+          }}
+        >
           <div>
             {t('状态')}：{config.label}
           </div>
           <div>
             {t('用量')}：{usage || '-'}
           </div>
+          <div>5h：{fiveHourUsage}</div>
+          <div>7d：{weeklyUsage}</div>
           <div>
-            {t('上游状态码')}：{summary?.upstream_status || '-'}
+            {t('套餐')}：{planType}
           </div>
           <div>
-            {t('检查时间')}：{checkedAt}
+            {t('上游状态码')}：{upstreamStatus}
           </div>
           <div>
-            {t('冷却至')}：{cooldownUntil}
+            {t('检查时间')}：{checkedAtText}
+          </div>
+          <div>
+            {t('冷却至')}：{cooldownUntilText}
           </div>
           {summary?.message ? (
-            <div className='mt-1 break-words text-semi-color-text-2'>
+            <div className='mt-1 break-words' style={{ color: 'var(--semi-color-text-1)' }}>
               {summary.message}
             </div>
           ) : null}

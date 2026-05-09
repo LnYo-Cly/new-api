@@ -17,10 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext } from 'react';
-import { Banner } from '@douyinfe/semi-ui';
+import React, { useContext, useState } from 'react';
+import { Banner, Tabs, TabPane } from '@douyinfe/semi-ui';
 import CardPro from '../../common/ui/CardPro';
 import SubscriptionsTable from './SubscriptionsTable';
+import UserSubscriptionsOverviewTable from './UserSubscriptionsOverviewTable';
 import SubscriptionsActions from './SubscriptionsActions';
 import SubscriptionsDescription from './SubscriptionsDescription';
 import AddEditSubscriptionModal from './modals/AddEditSubscriptionModal';
@@ -34,6 +35,7 @@ const SubscriptionsPage = () => {
   const isMobile = useIsMobile();
   const [statusState] = useContext(StatusContext);
   const enableEpay = !!statusState?.status?.enable_online_topup;
+  const [activeTab, setActiveTab] = useState('plans');
 
   const {
     showEdit,
@@ -83,18 +85,40 @@ const SubscriptionsPage = () => {
             />
           </div>
         }
-        paginationArea={createCardProPagination({
-          currentPage: subscriptionsData.activePage,
-          pageSize: subscriptionsData.pageSize,
-          total: subscriptionsData.planCount,
-          onPageChange: subscriptionsData.handlePageChange,
-          onPageSizeChange: subscriptionsData.handlePageSizeChange,
-          isMobile,
-          t: subscriptionsData.t,
-        })}
+        paginationArea={
+          activeTab === 'plans'
+            ? createCardProPagination({
+                currentPage: subscriptionsData.activePage,
+                pageSize: subscriptionsData.pageSize,
+                total: subscriptionsData.planCount,
+                onPageChange: subscriptionsData.handlePageChange,
+                onPageSizeChange: subscriptionsData.handlePageSizeChange,
+                isMobile,
+                t: subscriptionsData.t,
+              })
+            : null
+        }
         t={t}
       >
-        <SubscriptionsTable {...subscriptionsData} enableEpay={enableEpay} />
+        <Tabs
+          type='line'
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          className='mb-3'
+        >
+          <TabPane tab={t('套餐管理')} itemKey='plans' />
+          <TabPane tab={t('用户订阅')} itemKey='users' />
+        </Tabs>
+        {activeTab === 'plans' ? (
+          <SubscriptionsTable {...subscriptionsData} enableEpay={enableEpay} />
+        ) : (
+          <UserSubscriptionsOverviewTable
+            t={t}
+            isMobile={isMobile}
+            plans={subscriptionsData.allPlans}
+            onRefreshPlans={refresh}
+          />
+        )}
       </CardPro>
     </>
   );

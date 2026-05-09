@@ -40,6 +40,12 @@ import {
 
 const { Text } = Typography;
 
+function formatInternalQuota(value) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
+    Number(value || 0),
+  );
+}
+
 const SubscriptionPurchaseModal = ({
   t,
   visible,
@@ -134,7 +140,7 @@ const SubscriptionPurchaseModal = ({
                 <div className='flex items-center'>
                   <Package size={14} className='mr-1 text-slate-500' />
                   {totalAmount > 0 ? (
-                    <Tooltip content={`${t('原生额度')}：${totalAmount}`}>
+                    <Tooltip content={`${t('内部额度单位')}：${formatInternalQuota(totalAmount)}`}>
                       <Text className='text-slate-900 dark:text-slate-100'>
                         {renderQuota(totalAmount)}
                       </Text>

@@ -34,7 +34,11 @@ import {
   updateBillingPreference,
 } from '@/features/subscriptions/api'
 import { SubscriptionPurchaseDialog } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
-import { formatDuration, formatResetPeriod } from '@/features/subscriptions/lib'
+import {
+  formatDuration,
+  formatInternalQuota,
+  formatResetPeriod,
+} from '@/features/subscriptions/lib'
 import type {
   PlanRecord,
   UserSubscriptionRecord,
@@ -459,7 +463,9 @@ export function SubscriptionPlansCard({
                               {formatQuota(remainAmount)}
                             </TooltipTrigger>
                             <TooltipContent>
-                              {t('Raw Quota')}: {usedAmount}/{totalAmount} ·{' '}
+                              {t('Internal quota units')}:{' '}
+                              {formatInternalQuota(usedAmount)}/
+                              {formatInternalQuota(totalAmount)} ·{' '}
                               {t('Remaining')} {remainAmount}
                             </TooltipContent>
                           </Tooltip>
@@ -508,7 +514,7 @@ export function SubscriptionPlansCard({
                   ? `${t('Quota Reset')}: ${formatResetPeriod(plan, t)}`
                   : null,
                 totalAmount > 0
-                  ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
+                  ? `${t('Total Quota')}: ${formatQuota(totalAmount)} (${t('Internal quota units')}: ${formatInternalQuota(totalAmount)})`
                   : `${t('Total Quota')}: ${t('Unlimited')}`,
                 limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
                 plan.upgrade_group

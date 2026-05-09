@@ -50,6 +50,10 @@ import {
   formatTimestampForInput,
   parseTimestampFromInput,
 } from '@/lib/format'
+import {
+  formatInternalQuota,
+  formatSubscriptionQuota,
+} from '../../lib'
 import type { PlanRecord, UserSubscriptionRecord } from '../../types'
 
 interface Props {
@@ -358,7 +362,21 @@ export function UserSubscriptionsDialog(props: Props) {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {total > 0 ? `${used}/${total}` : t('Unlimited')}
+                            {total > 0 ? (
+                              <div className='text-xs'>
+                                <div>
+                                  {formatSubscriptionQuota(used, t)} /{' '}
+                                  {formatSubscriptionQuota(total, t)}
+                                </div>
+                                <div className='text-muted-foreground'>
+                                  {t('Internal quota units')}:{' '}
+                                  {formatInternalQuota(used)} /{' '}
+                                  {formatInternalQuota(total)}
+                                </div>
+                              </div>
+                            ) : (
+                              t('Unlimited')
+                            )}
                           </TableCell>
                           <TableCell className='text-right'>
                             <div className='flex flex-wrap justify-end gap-1'>

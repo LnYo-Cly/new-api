@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { CircleAlert, Sparkles, KeyRound } from 'lucide-react'
+import { CircleAlert, GitBranch, Sparkles, KeyRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
@@ -298,26 +298,35 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           const channelIdDisplay = `#${log.channel}`
           const channelName = sensitiveVisible ? log.channel_name : '••••'
 
+          const visibleChannelChain = sensitiveVisible
+            ? channelChain
+            : channelChain
+              ? useChannel?.map(() => '••••').join(' → ')
+              : undefined
+
           return (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <div className='flex max-w-[160px] flex-col gap-0.5' />
+                    <div className='flex max-w-[210px] flex-col gap-1' />
                   }
                 >
-                  <div className='relative inline-flex w-fit'>
-                    <StatusBadge
-                      label={channelIdDisplay}
-                      autoColor={String(log.channel)}
-                      copyText={String(log.channel)}
-                      size='sm'
-                      className='font-mono'
-                    />
+                  <div className='flex min-w-0 items-center gap-1.5'>
+                    <span className='min-w-0'>
+                      <StatusBadge
+                        label={channelIdDisplay}
+                        autoColor={String(log.channel)}
+                        copyText={String(log.channel)}
+                        size='sm'
+                        className='font-mono'
+                      />
+                    </span>
                     {affinity && (
                       <button
                         type='button'
-                        className='absolute -top-1 -right-1 leading-none text-amber-500'
+                        className='inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-amber-300/80 bg-amber-100 text-amber-700 shadow-sm hover:bg-amber-200 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                        title={t('Channel Affinity')}
                         onClick={(e) => {
                           e.stopPropagation()
                           setAffinityTarget({
@@ -341,19 +350,28 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                       {channelName}
                     </span>
                   )}
+                  {visibleChannelChain && (
+                    <div className='inline-flex max-w-full items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[11px] font-medium text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-200'>
+                      <GitBranch className='size-3 shrink-0' />
+                      <span className='truncate'>{visibleChannelChain}</span>
+                    </div>
+                  )}
                 </TooltipTrigger>
-                <TooltipContent>
-                  <div className='space-y-1'>
-                    <p>
+                <TooltipContent className='border-border bg-popover text-popover-foreground max-w-[420px] border shadow-xl [&>svg]:bg-popover [&>svg]:fill-popover'>
+                  <div className='space-y-1.5 text-xs text-popover-foreground'>
+                    <p className='text-sm font-semibold'>
                       {sensitiveVisible ? channelDisplay : channelIdDisplay}
                     </p>
-                    {channelChain && (
-                      <p className='text-muted-foreground text-xs'>
-                        {t('Chain')}: {channelChain}
-                      </p>
+                    {visibleChannelChain && (
+                      <div className='bg-muted/60 rounded-md px-2 py-1'>
+                        <span className='font-medium'>{t('Chain')}:</span>{' '}
+                        <span className='font-mono break-all'>
+                          {visibleChannelChain}
+                        </span>
+                      </div>
                     )}
                     {affinity && (
-                      <div className='border-t pt-1 text-xs'>
+                      <div className='border-border border-t pt-1.5'>
                         <p className='font-medium'>{t('Channel Affinity')}</p>
                         <p>
                           {t('Rule')}: {affinity.rule_name || '-'}

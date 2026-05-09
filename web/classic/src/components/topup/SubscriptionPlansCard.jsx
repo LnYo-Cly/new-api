@@ -41,6 +41,12 @@ import {
 
 const { Text } = Typography;
 
+function formatInternalQuota(value) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
+    Number(value || 0),
+  );
+}
+
 // 过滤易支付方式
 function getEpayMethods(payMethods = []) {
   return (payMethods || []).filter(
@@ -454,7 +460,7 @@ const SubscriptionPlansCard = ({
                           {t('总额度')}:{' '}
                           {totalAmount > 0 ? (
                             <Tooltip
-                              content={`${t('原生额度')}：${usedAmount}/${totalAmount} · ${t('剩余')} ${remainAmount}`}
+                              content={`${t('内部额度单位')}：${formatInternalQuota(usedAmount)}/${formatInternalQuota(totalAmount)} · ${t('剩余')} ${formatInternalQuota(remainAmount)}`}
                             >
                               <span>
                                 {renderQuota(usedAmount)}/
@@ -503,6 +509,10 @@ const SubscriptionPlansCard = ({
                   totalAmount > 0
                     ? `${t('总额度')}: ${renderQuota(totalAmount)}`
                     : `${t('总额度')}: ${t('不限')}`;
+                const totalLabelWithUnit =
+                  totalAmount > 0
+                    ? `${totalLabel} (${t('内部额度单位')}：${formatInternalQuota(totalAmount)})`
+                    : totalLabel;
                 const upgradeLabel = plan?.upgrade_group
                   ? `${t('升级分组')}: ${plan.upgrade_group}`
                   : null;
@@ -517,10 +527,10 @@ const SubscriptionPlansCard = ({
                   resetLabel ? { label: resetLabel } : null,
                   totalAmount > 0
                     ? {
-                        label: totalLabel,
-                        tooltip: `${t('原生额度')}：${totalAmount}`,
+                        label: totalLabelWithUnit,
+                        tooltip: `${t('内部额度单位')}：${formatInternalQuota(totalAmount)}`,
                       }
-                    : { label: totalLabel },
+                    : { label: totalLabelWithUnit },
                   limitLabel ? { label: limitLabel } : null,
                   upgradeLabel ? { label: upgradeLabel } : null,
                 ].filter(Boolean);

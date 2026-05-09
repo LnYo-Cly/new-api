@@ -207,6 +207,7 @@ export function ModelsTable() {
       columns={columns}
       isLoading={isLoading}
       isFetching={isFetching}
+      totalRows={totalCount}
       emptyTitle={t('No Models Found')}
       emptyDescription={t(
         'No models available. Create your first model to get started.'

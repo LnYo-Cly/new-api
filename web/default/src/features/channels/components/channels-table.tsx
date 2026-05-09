@@ -393,6 +393,7 @@ export function ChannelsTable() {
       columns={columns}
       isLoading={isLoading}
       isFetching={isFetching}
+      totalRows={totalCount}
       emptyTitle={t('No Channels Found')}
       emptyDescription={t(
         'No channels available. Create your first channel to get started.'

@@ -448,6 +448,17 @@ function CodexAccountStatusCell({ channel }: { channel: Channel }) {
   const checkedAt = summary?.checked_at
     ? formatTimestampToDate(summary.checked_at)
     : ''
+  const cooldownUntil = summary?.cooldown_until
+    ? formatTimestampToDate(summary.cooldown_until)
+    : ''
+  const fiveHourUsage =
+    typeof summary?.five_hour_window?.used_percent === 'number'
+      ? `${summary.five_hour_window.used_percent}%`
+      : '-'
+  const weeklyUsage =
+    typeof summary?.weekly_window?.used_percent === 'number'
+      ? `${summary.weekly_window.used_percent}%`
+      : '-'
 
   return (
     <TooltipProvider delay={100}>
@@ -467,29 +478,56 @@ function CodexAccountStatusCell({ channel }: { channel: Channel }) {
             )}
           </div>
         </TooltipTrigger>
-        <TooltipContent side='top' className='max-w-sm'>
-          <div className='space-y-1 text-xs'>
+        <TooltipContent
+          side='top'
+          className='border-border bg-popover text-popover-foreground max-w-sm border shadow-xl [&>svg]:bg-popover [&>svg]:fill-popover'
+        >
+          <div className='space-y-1.5 text-xs text-popover-foreground'>
             <div>
-              {t('Codex Status')}: {t(config.label)}
+              <span className='font-medium'>{t('Codex Status')}:</span>{' '}
+              {t(config.label)}
             </div>
             {usageText && (
               <div>
-                {t('Usage')}: {usageText}
+                <span className='font-medium'>{t('Usage')}:</span>{' '}
+                <span className='font-mono'>{usageText}</span>
               </div>
             )}
+            <div>
+              <span className='font-medium'>5h:</span>{' '}
+              <span className='font-mono'>{fiveHourUsage}</span>
+            </div>
+            <div>
+              <span className='font-medium'>7d:</span>{' '}
+              <span className='font-mono'>{weeklyUsage}</span>
+            </div>
             {checkedAt && (
               <div>
-                {t('Last checked')}: {checkedAt}
+                <span className='font-medium'>{t('Last checked')}:</span>{' '}
+                {checkedAt}
+              </div>
+            )}
+            {cooldownUntil && (
+              <div>
+                <span className='font-medium'>{t('Cooldown until')}:</span>{' '}
+                {cooldownUntil}
               </div>
             )}
             {typeof summary?.upstream_status === 'number' &&
               summary.upstream_status > 0 && (
                 <div>
-                  {t('Upstream status')}: {summary.upstream_status}
+                  <span className='font-medium'>{t('Upstream status')}:</span>{' '}
+                  {summary.upstream_status}
                 </div>
               )}
+            {summary?.plan_type && (
+              <div>
+                <span className='font-medium'>{t('Plan')}:</span>{' '}
+                {summary.plan_type}
+              </div>
+            )}
             {summary?.message && (
-              <div className='text-muted-foreground break-words'>
+              <div className='bg-muted/60 mt-1 rounded-md px-2 py-1 break-words'>
                 {summary.message}
               </div>
             )}

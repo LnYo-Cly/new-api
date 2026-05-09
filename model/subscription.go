@@ -277,6 +277,57 @@ type AdminAdjustUserSubscriptionTimeResult struct {
 	NewEndTime   int64             `json:"new_end_time"`
 }
 
+type SubscriptionUserSummary struct {
+	Id          int    `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+	Group       string `json:"group"`
+	Status      int    `json:"status"`
+}
+
+type AdminUserSubscriptionRecord struct {
+	Subscription   *UserSubscription        `json:"subscription"`
+	Plan           *SubscriptionPlan        `json:"plan"`
+	User           *SubscriptionUserSummary `json:"user"`
+	RemainingQuota int64                    `json:"remaining_quota"`
+	RemainingDays  float64                  `json:"remaining_days"`
+	TodayUsed      int64                    `json:"today_used"`
+	Last7dUsed     int64                    `json:"last_7d_used"`
+	DailyUsage     map[string]int64         `json:"daily_usage"`
+}
+
+type AdminUserSubscriptionStats struct {
+	Total        int64 `json:"total"`
+	Active       int64 `json:"active"`
+	Expired      int64 `json:"expired"`
+	Cancelled    int64 `json:"cancelled"`
+	Expiring7d   int64 `json:"expiring_7d"`
+	TodayUsed    int64 `json:"today_used"`
+	Last7dUsed   int64 `json:"last_7d_used"`
+	Unlimited    int64 `json:"unlimited"`
+	QuotaLimited int64 `json:"quota_limited"`
+}
+
+type AdminUserSubscriptionFilters struct {
+	Keyword      string
+	Status       string
+	PlanId       int
+	ExpiringDays int
+}
+
+type AdminUserSubscriptionListResult struct {
+	Items []AdminUserSubscriptionRecord `json:"items"`
+	Total int64                         `json:"total"`
+	Stats AdminUserSubscriptionStats    `json:"stats"`
+}
+
+type subscriptionUsageAggregation struct {
+	TodayUsed  int64
+	Last7dUsed int64
+	DailyUsage map[string]int64
+}
+
 func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
 	if plan == nil {
 		return 0, errors.New("plan is nil")
@@ -729,6 +780,419 @@ func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
 		})
 	}
 	return result
+}
+
+func escapeSubscriptionLikeKeyword(keyword string) string {
+	keyword = strings.TrimSpace(keyword)
+	keyword = strings.ReplaceAll(keyword, "!", "!!")
+	keyword = strings.ReplaceAll(keyword, "%", "!%")
+	keyword = strings.ReplaceAll(keyword, "_", "!_")
+	return "%" + keyword + "%"
+}
+
+func applyAdminUserSubscriptionFilters(query *gorm.DB, filters AdminUserSubscriptionFilters, includeStatus bool, now int64) *gorm.DB {
+	query = query.Joins("LEFT JOIN users ON users.id = user_subscriptions.user_id")
+
+	keyword := strings.TrimSpace(filters.Keyword)
+	if keyword != "" {
+		likeKeyword := escapeSubscriptionLikeKeyword(keyword)
+		if numericId, err := strconv.Atoi(keyword); err == nil && numericId > 0 {
+			query = query.Where(
+				"(users.username LIKE ? ESCAPE '!' OR users.email LIKE ? ESCAPE '!' OR users.display_name LIKE ? ESCAPE '!' OR user_subscriptions.id = ? OR user_subscriptions.user_id = ?)",
+				likeKeyword,
+				likeKeyword,
+				likeKeyword,
+				numericId,
+				numericId,
+			)
+		} else {
+			query = query.Where(
+				"(users.username LIKE ? ESCAPE '!' OR users.email LIKE ? ESCAPE '!' OR users.display_name LIKE ? ESCAPE '!')",
+				likeKeyword,
+				likeKeyword,
+				likeKeyword,
+			)
+		}
+	}
+
+	if filters.PlanId > 0 {
+		query = query.Where("user_subscriptions.plan_id = ?", filters.PlanId)
+	}
+	if filters.ExpiringDays > 0 {
+		expiringEnd := now + int64(filters.ExpiringDays)*24*3600
+		query = query.Where("user_subscriptions.status = ? AND user_subscriptions.end_time > ? AND user_subscriptions.end_time <= ?", "active", now, expiringEnd)
+	}
+
+	if includeStatus {
+		switch strings.TrimSpace(filters.Status) {
+		case "active":
+			query = query.Where("user_subscriptions.status = ? AND user_subscriptions.end_time > ?", "active", now)
+		case "expired":
+			query = query.Where("(user_subscriptions.status = ? OR (user_subscriptions.status = ? AND user_subscriptions.end_time <= ?))", "expired", "active", now)
+		case "cancelled":
+			query = query.Where("user_subscriptions.status = ?", "cancelled")
+		}
+	}
+	return query
+}
+
+func countAdminUserSubscriptions(filters AdminUserSubscriptionFilters, status string, now int64) (int64, error) {
+	countFilters := filters
+	countFilters.Status = status
+	query := applyAdminUserSubscriptionFilters(
+		DB.Model(&UserSubscription{}).Table("user_subscriptions"),
+		countFilters,
+		status != "",
+		now,
+	)
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+func buildAdminUserSubscriptionStats(filters AdminUserSubscriptionFilters, now int64) (AdminUserSubscriptionStats, error) {
+	stats := AdminUserSubscriptionStats{}
+	var err error
+	baseFilters := filters
+	baseFilters.Status = ""
+	stats.Total, err = countAdminUserSubscriptions(baseFilters, "", now)
+	if err != nil {
+		return stats, err
+	}
+	stats.Active, err = countAdminUserSubscriptions(baseFilters, "active", now)
+	if err != nil {
+		return stats, err
+	}
+	stats.Expired, err = countAdminUserSubscriptions(baseFilters, "expired", now)
+	if err != nil {
+		return stats, err
+	}
+	stats.Cancelled, err = countAdminUserSubscriptions(baseFilters, "cancelled", now)
+	if err != nil {
+		return stats, err
+	}
+
+	expiringFilters := baseFilters
+	expiringFilters.ExpiringDays = 7
+	stats.Expiring7d, err = countAdminUserSubscriptions(expiringFilters, "active", now)
+	if err != nil {
+		return stats, err
+	}
+
+	unlimitedQuery := applyAdminUserSubscriptionFilters(
+		DB.Model(&UserSubscription{}).Table("user_subscriptions"),
+		baseFilters,
+		false,
+		now,
+	).Where("user_subscriptions.amount_total = 0")
+	if err = unlimitedQuery.Count(&stats.Unlimited).Error; err != nil {
+		return stats, err
+	}
+
+	limitedQuery := applyAdminUserSubscriptionFilters(
+		DB.Model(&UserSubscription{}).Table("user_subscriptions"),
+		baseFilters,
+		false,
+		now,
+	).Where("user_subscriptions.amount_total > 0")
+	if err = limitedQuery.Count(&stats.QuotaLimited).Error; err != nil {
+		return stats, err
+	}
+	return stats, nil
+}
+
+func numberToInt(value interface{}) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case int32:
+		return int(v)
+	case float64:
+		return int(v)
+	case float32:
+		return int(v)
+	case string:
+		parsed, _ := strconv.Atoi(strings.TrimSpace(v))
+		return parsed
+	default:
+		return 0
+	}
+}
+
+func numberToInt64(value interface{}) int64 {
+	switch v := value.(type) {
+	case int:
+		return int64(v)
+	case int64:
+		return v
+	case int32:
+		return int64(v)
+	case float64:
+		return int64(v)
+	case float32:
+		return int64(v)
+	case string:
+		parsed, _ := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		return parsed
+	default:
+		return 0
+	}
+}
+
+func aggregateSubscriptionUsage(subs []UserSubscription, now time.Time) map[int]subscriptionUsageAggregation {
+	result := make(map[int]subscriptionUsageAggregation, len(subs))
+	if len(subs) == 0 {
+		return result
+	}
+
+	subscriptionIds := make([]int, 0, len(subs))
+	userIdsSet := map[int]bool{}
+	subscriptionIdSet := map[int]bool{}
+	for _, sub := range subs {
+		if sub.Id <= 0 {
+			continue
+		}
+		subscriptionIds = append(subscriptionIds, sub.Id)
+		subscriptionIdSet[sub.Id] = true
+		if sub.UserId > 0 {
+			userIdsSet[sub.UserId] = true
+		}
+		result[sub.Id] = subscriptionUsageAggregation{
+			DailyUsage: map[string]int64{},
+		}
+	}
+	if len(subscriptionIds) == 0 {
+		return result
+	}
+
+	userIds := make([]int, 0, len(userIdsSet))
+	for userId := range userIdsSet {
+		userIds = append(userIds, userId)
+	}
+	if len(userIds) == 0 {
+		return result
+	}
+
+	localNow := now.In(time.Local)
+	todayStart := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), 0, 0, 0, 0, time.Local)
+	tomorrowStart := todayStart.AddDate(0, 0, 1)
+	from := todayStart.AddDate(0, 0, -6).Unix()
+	to := tomorrowStart.Unix()
+
+	type usageLogRow struct {
+		UserId    int
+		CreatedAt int64
+		Quota     int
+		Other     string
+	}
+	var logs []usageLogRow
+	query := LOG_DB.Model(&Log{}).
+		Select("user_id, created_at, quota, other").
+		Where("type = ? AND created_at >= ? AND created_at < ?", LogTypeConsume, from, to)
+	if len(userIds) > 0 {
+		query = query.Where("user_id IN ?", userIds)
+	}
+	if err := query.Find(&logs).Error; err != nil {
+		common.SysError("failed to aggregate subscription usage: " + err.Error())
+		return result
+	}
+
+	for _, log := range logs {
+		if strings.TrimSpace(log.Other) == "" {
+			continue
+		}
+		other, err := common.StrToMap(log.Other)
+		if err != nil || other == nil || other["billing_source"] != "subscription" {
+			continue
+		}
+		subscriptionId := numberToInt(other["subscription_id"])
+		if subscriptionId <= 0 || !subscriptionIdSet[subscriptionId] {
+			continue
+		}
+		used := numberToInt64(other["subscription_consumed"])
+		if used <= 0 && log.Quota > 0 {
+			used = int64(log.Quota)
+		}
+		if used <= 0 {
+			continue
+		}
+		aggregation := result[subscriptionId]
+		if aggregation.DailyUsage == nil {
+			aggregation.DailyUsage = map[string]int64{}
+		}
+		dayKey := time.Unix(log.CreatedAt, 0).In(time.Local).Format("2006-01-02")
+		aggregation.DailyUsage[dayKey] += used
+		aggregation.Last7dUsed += used
+		if log.CreatedAt >= todayStart.Unix() && log.CreatedAt < tomorrowStart.Unix() {
+			aggregation.TodayUsed += used
+		}
+		result[subscriptionId] = aggregation
+	}
+	return result
+}
+
+func aggregateAdminUserSubscriptionStatsUsage(filters AdminUserSubscriptionFilters, now int64) (int64, int64, error) {
+	query := applyAdminUserSubscriptionFilters(
+		DB.Model(&UserSubscription{}).Table("user_subscriptions"),
+		filters,
+		true,
+		now,
+	)
+
+	var subs []UserSubscription
+	if err := query.
+		Select("user_subscriptions.id, user_subscriptions.user_id").
+		Find(&subs).Error; err != nil {
+		return 0, 0, err
+	}
+
+	usageById := aggregateSubscriptionUsage(subs, time.Unix(now, 0))
+	var todayUsed int64
+	var last7dUsed int64
+	for _, usage := range usageById {
+		todayUsed += usage.TodayUsed
+		last7dUsed += usage.Last7dUsed
+	}
+	return todayUsed, last7dUsed, nil
+}
+
+// ListAdminUserSubscriptions returns paginated user subscriptions with user, plan, and recent usage details.
+func ListAdminUserSubscriptions(filters AdminUserSubscriptionFilters, pageInfo *common.PageInfo) (*AdminUserSubscriptionListResult, error) {
+	if pageInfo == nil {
+		pageInfo = &common.PageInfo{Page: 1, PageSize: common.ItemsPerPage}
+	}
+	now := common.GetTimestamp()
+	query := applyAdminUserSubscriptionFilters(
+		DB.Model(&UserSubscription{}).Table("user_subscriptions"),
+		filters,
+		true,
+		now,
+	)
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	var subs []UserSubscription
+	if err := query.
+		Select("user_subscriptions.*").
+		Order("user_subscriptions.end_time desc, user_subscriptions.id desc").
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&subs).Error; err != nil {
+		return nil, err
+	}
+
+	stats, err := buildAdminUserSubscriptionStats(filters, now)
+	if err != nil {
+		return nil, err
+	}
+	stats.TodayUsed, stats.Last7dUsed, err = aggregateAdminUserSubscriptionStatsUsage(filters, now)
+	if err != nil {
+		return nil, err
+	}
+
+	planIdsSet := map[int]bool{}
+	userIdsSet := map[int]bool{}
+	for _, sub := range subs {
+		if sub.PlanId > 0 {
+			planIdsSet[sub.PlanId] = true
+		}
+		if sub.UserId > 0 {
+			userIdsSet[sub.UserId] = true
+		}
+	}
+
+	planIds := make([]int, 0, len(planIdsSet))
+	for planId := range planIdsSet {
+		planIds = append(planIds, planId)
+	}
+	userIds := make([]int, 0, len(userIdsSet))
+	for userId := range userIdsSet {
+		userIds = append(userIds, userId)
+	}
+
+	plansById := map[int]SubscriptionPlan{}
+	if len(planIds) > 0 {
+		var plans []SubscriptionPlan
+		if err := DB.Where("id IN ?", planIds).Find(&plans).Error; err != nil {
+			return nil, err
+		}
+		for _, plan := range plans {
+			plansById[plan.Id] = plan
+		}
+	}
+
+	usersById := map[int]SubscriptionUserSummary{}
+	if len(userIds) > 0 {
+		var users []User
+		if err := DB.Select("id, username, display_name, email, status, "+commonGroupCol).
+			Where("id IN ?", userIds).
+			Find(&users).Error; err != nil {
+			return nil, err
+		}
+		for _, user := range users {
+			usersById[user.Id] = SubscriptionUserSummary{
+				Id:          user.Id,
+				Username:    user.Username,
+				DisplayName: user.DisplayName,
+				Email:       user.Email,
+				Group:       user.Group,
+				Status:      user.Status,
+			}
+		}
+	}
+
+	usageById := aggregateSubscriptionUsage(subs, time.Unix(now, 0))
+	items := make([]AdminUserSubscriptionRecord, 0, len(subs))
+	for _, sub := range subs {
+		subCopy := sub
+		planCopy, hasPlan := plansById[sub.PlanId]
+		userCopy, hasUser := usersById[sub.UserId]
+		usage := usageById[sub.Id]
+		if usage.DailyUsage == nil {
+			usage.DailyUsage = map[string]int64{}
+		}
+
+		remainingQuota := int64(0)
+		if sub.AmountTotal > 0 {
+			remainingQuota = sub.AmountTotal - sub.AmountUsed
+			if remainingQuota < 0 {
+				remainingQuota = 0
+			}
+		}
+		remainingDays := float64(0)
+		if sub.EndTime > now {
+			remainingDays = float64(sub.EndTime-now) / 86400
+		}
+
+		record := AdminUserSubscriptionRecord{
+			Subscription:   &subCopy,
+			RemainingQuota: remainingQuota,
+			RemainingDays:  remainingDays,
+			TodayUsed:      usage.TodayUsed,
+			Last7dUsed:     usage.Last7dUsed,
+			DailyUsage:     usage.DailyUsage,
+		}
+		if hasPlan {
+			record.Plan = &planCopy
+		}
+		if hasUser {
+			record.User = &userCopy
+		}
+		items = append(items, record)
+	}
+
+	return &AdminUserSubscriptionListResult{
+		Items: items,
+		Total: total,
+		Stats: stats,
+	}, nil
 }
 
 // AdminInvalidateUserSubscription marks a user subscription as cancelled and ends it immediately.

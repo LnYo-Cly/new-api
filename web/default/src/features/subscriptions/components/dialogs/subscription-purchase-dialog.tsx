@@ -25,7 +25,12 @@ import {
   paySubscriptionCreem,
   paySubscriptionEpay,
 } from '../../api'
-import { formatDuration, formatResetPeriod } from '../../lib'
+import {
+  formatDuration,
+  formatInternalQuota,
+  formatResetPeriod,
+  formatSubscriptionQuota,
+} from '../../lib'
 import type { PlanRecord } from '../../types'
 
 interface PaymentMethod {
@@ -206,15 +211,22 @@ export function SubscriptionPurchaseDialog(props: Props) {
                 <span className='text-sm'>{formatResetPeriod(plan, t)}</span>
               </div>
             )}
-            <div className='flex items-center justify-between'>
+            <div className='flex items-center justify-between gap-4'>
               <span className='text-muted-foreground text-sm'>
                 {t('Total Quota')}
               </span>
-              <span className='flex items-center gap-1 text-sm'>
+              <span className='flex min-w-0 items-center gap-1 text-right text-sm'>
                 <Package className='h-3.5 w-3.5' />
-                {totalAmount > 0 ? totalAmount : t('Unlimited')}
+                {totalAmount > 0
+                  ? formatSubscriptionQuota(totalAmount, t)
+                  : t('Unlimited')}
               </span>
             </div>
+            {totalAmount > 0 && (
+              <div className='text-muted-foreground flex justify-end text-xs'>
+                {t('Internal quota units')}: {formatInternalQuota(totalAmount)}
+              </div>
+            )}
             {plan.upgrade_group && (
               <div className='flex items-center justify-between'>
                 <span className='text-muted-foreground text-sm'>

@@ -55,6 +55,7 @@ const ChannelsActions = ({
   setStatusFilter,
   codexStatusFilter,
   setCodexStatusFilter,
+  codexStatusCounts = {},
   getFormValues,
   loadChannels,
   searchChannels,
@@ -64,6 +65,25 @@ const ChannelsActions = ({
   setActivePage,
   t,
 }) => {
+  const codexStatusOptions = [
+    { value: 'all', label: t('全部') },
+    { value: 'available', label: t('正常') },
+    { value: 'limited', label: t('受限') },
+    { value: 'credential_invalid', label: t('凭证失效') },
+    { value: 'temp_unavailable', label: t('临时不可用') },
+    { value: 'query_failed', label: t('查询失败') },
+    { value: 'not_checked', label: t('未查询') },
+  ].map((item) => {
+    const count =
+      item.value === 'all'
+        ? Object.values(codexStatusCounts || {}).reduce(
+            (sum, value) => sum + (Number(value) || 0),
+            0,
+          )
+        : Number(codexStatusCounts?.[item.value]) || 0;
+    return { ...item, count };
+  });
+
   return (
     <div className='flex flex-col gap-2'>
       {/* 第一行：批量操作按钮 + 设置开关 */}
@@ -411,19 +431,11 @@ const ChannelsActions = ({
                 );
               }}
             >
-              <Select.Option value='all'>{t('全部')}</Select.Option>
-              <Select.Option value='available'>{t('正常')}</Select.Option>
-              <Select.Option value='limited'>{t('受限')}</Select.Option>
-              <Select.Option value='credential_invalid'>
-                {t('凭证失效')}
-              </Select.Option>
-              <Select.Option value='temp_unavailable'>
-                {t('临时不可用')}
-              </Select.Option>
-              <Select.Option value='query_failed'>
-                {t('查询失败')}
-              </Select.Option>
-              <Select.Option value='not_checked'>{t('未查询')}</Select.Option>
+              {codexStatusOptions.map((item) => (
+                <Select.Option key={item.value} value={item.value}>
+                  {item.label} ({item.count})
+                </Select.Option>
+              ))}
             </Select>
           </div>
         </div>

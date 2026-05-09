@@ -199,7 +199,12 @@ const ModelTestModal = ({
                     theme='light'
                     type='warning'
                     icon={<Settings size={12} />}
-                    onClick={() => window.open('/console/setting?tab=ratio', '_blank')}
+                    onClick={() =>
+                      window.open(
+                        '/console/setting?tab=ratio&ratioTab=pricing',
+                        '_blank',
+                      )
+                    }
                     style={{ width: 'fit-content' }}
                   >
                     {t('前往设置')}

@@ -81,6 +81,7 @@ export const useChannelsData = () => {
   // Type tabs states
   const [activeTypeKey, setActiveTypeKey] = useState('all');
   const [typeCounts, setTypeCounts] = useState({});
+  const [codexStatusCounts, setCodexStatusCounts] = useState({});
 
   // Model test states
   const [showModelTestModal, setShowModelTestModal] = useState(false);
@@ -366,13 +367,16 @@ export const useChannelsData = () => {
 
     const { success, message, data } = res.data;
     if (success) {
-      const { items, total, type_counts } = data;
+      const { items, total, type_counts, codex_status_counts } = data;
       if (type_counts) {
         const sumAll = Object.values(type_counts).reduce(
           (acc, v) => acc + v,
           0,
         );
         setTypeCounts({ ...type_counts, all: sumAll });
+      }
+      if (codex_status_counts) {
+        setCodexStatusCounts(codex_status_counts);
       }
       setChannelFormat(items, enableTagMode);
       setChannelCount(total);
@@ -417,12 +421,18 @@ export const useChannelsData = () => {
       );
       const { success, message, data } = res.data;
       if (success) {
-        const { items = [], total = 0, type_counts = {} } = data;
+        const {
+          items = [],
+          total = 0,
+          type_counts = {},
+          codex_status_counts = {},
+        } = data;
         const sumAll = Object.values(type_counts).reduce(
           (acc, v) => acc + v,
           0,
         );
         setTypeCounts({ ...type_counts, all: sumAll });
+        setCodexStatusCounts(codex_status_counts);
         setChannelFormat(items, enableTagMode);
         setChannelCount(total);
         setActivePage(page);
@@ -1358,6 +1368,7 @@ export const useChannelsData = () => {
     enableBatchDelete,
     statusFilter,
     codexStatusFilter,
+    codexStatusCounts,
     compactMode,
     globalPassThroughEnabled,
 

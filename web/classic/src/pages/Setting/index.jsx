@@ -181,7 +181,9 @@ const Setting = () => {
   }
   const onChangeTab = (key) => {
     setTabActiveKey(key);
-    navigate(`?tab=${key}`);
+    const searchParams = new URLSearchParams(window.location.search);
+    searchParams.set('tab', key);
+    navigate(`?${searchParams.toString()}`);
   };
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);

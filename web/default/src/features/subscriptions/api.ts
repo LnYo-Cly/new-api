@@ -1,6 +1,7 @@
 import { api } from '@/lib/api'
 import type {
   ApiResponse,
+  AdminUserSubscriptionsResponse,
   PlanRecord,
   PlanPayload,
   UserSubscriptionRecord,
@@ -55,6 +56,20 @@ export async function getUserSubscriptions(
   const res = await api.get(
     `/api/subscription/admin/users/${userId}/subscriptions`
   )
+  return res.data
+}
+
+export async function getAdminUserSubscriptionOverview(params: {
+  p?: number
+  page_size?: number
+  keyword?: string
+  status?: string
+  plan_id?: number
+  expiring_days?: number
+}): Promise<ApiResponse<AdminUserSubscriptionsResponse>> {
+  const res = await api.get('/api/subscription/admin/user_subscriptions', {
+    params,
+  })
   return res.data
 }
 

@@ -148,6 +148,12 @@ export type DataTablePageProps<TData> = {
   showPagination?: boolean
 
   /**
+   * Total rows for server-side pagination. When omitted, the table infers the
+   * count from the client-side pre-pagination row model.
+   */
+  totalRows?: number
+
+  /**
    * Render pagination via `PageFooterPortal` (sticks to page footer).
    * Defaults to `true`. Set `false` to render inline below the table.
    */
@@ -231,11 +237,17 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
       {props.showPagination !== false &&
         (props.paginationInFooter !== false ? (
           <PageFooterPortal>
-            <DataTablePagination table={props.table} />
+            <DataTablePagination
+              table={props.table}
+              totalRows={props.totalRows}
+            />
           </PageFooterPortal>
         ) : (
           <div className='pt-2'>
-            <DataTablePagination table={props.table} />
+            <DataTablePagination
+              table={props.table}
+              totalRows={props.totalRows}
+            />
           </div>
         ))}
     </>

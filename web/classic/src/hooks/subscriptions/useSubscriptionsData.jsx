@@ -131,6 +131,7 @@ export const useSubscriptionsData = () => {
 
   return {
     // Data state
+    allPlans,
     plans,
     planCount,
     loading,

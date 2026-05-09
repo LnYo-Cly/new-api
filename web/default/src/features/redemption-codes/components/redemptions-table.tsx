@@ -143,6 +143,7 @@ export function RedemptionsTable() {
       columns={columns}
       isLoading={isLoading}
       isFetching={isFetching}
+      totalRows={data?.total || 0}
       emptyTitle={t('No Redemption Codes Found')}
       emptyDescription={t(
         'No redemption codes available. Create your first redemption code to get started.'

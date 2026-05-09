@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next'
 import dayjs from '@/lib/dayjs'
+import { formatQuota } from '@/lib/format'
 import type { SubscriptionPlan } from '../types'
 
 export function formatDuration(
@@ -45,4 +46,19 @@ export function formatResetPeriod(
 export function formatTimestamp(ts: number): string {
   if (!ts) return '-'
   return dayjs(ts * 1000).format('YYYY-MM-DD HH:mm:ss')
+}
+
+export function formatSubscriptionQuota(
+  amount: number | null | undefined,
+  t: TFunction
+): string {
+  const value = Number(amount || 0)
+  if (value <= 0) return t('Unlimited')
+  return formatQuota(value)
+}
+
+export function formatInternalQuota(amount: number | null | undefined): string {
+  return Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
+    Number(amount || 0)
+  )
 }

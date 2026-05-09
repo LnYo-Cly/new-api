@@ -217,6 +217,7 @@ export function DeploymentsTable() {
         columns={columns}
         isLoading={isLoading}
         isFetching={isFetching}
+        totalRows={totalCount}
         emptyTitle={t('No Deployments Found')}
         emptyDescription={t(
           'No deployments available. Create one to get started.'

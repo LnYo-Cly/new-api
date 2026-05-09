@@ -17,8 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, Spin, Tabs } from '@douyinfe/semi-ui';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import ModelPricingCombined from '../../pages/Setting/Ratio/ModelPricingCombined';
@@ -31,6 +32,8 @@ import { API, showError, toBoolean } from '../../helpers';
 
 const RatioSetting = () => {
   const { t } = useTranslation();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   let [inputs, setInputs] = useState({
     ModelPrice: '',
@@ -51,6 +54,17 @@ const RatioSetting = () => {
   });
 
   const [loading, setLoading] = useState(false);
+  const activeRatioTab = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    return searchParams.get('ratioTab') || 'pricing';
+  }, [location.search]);
+
+  const handleRatioTabChange = (key) => {
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.set('tab', 'ratio');
+    searchParams.set('ratioTab', key);
+    navigate({ search: `?${searchParams.toString()}` }, { replace: true });
+  };
 
   const getOptions = async () => {
     const res = await API.get('/api/option/');
@@ -96,7 +110,11 @@ const RatioSetting = () => {
   return (
     <Spin spinning={loading} size='large'>
       <Card style={{ marginTop: '10px' }}>
-        <Tabs type='card' defaultActiveKey='pricing'>
+        <Tabs
+          type='card'
+          activeKey={activeRatioTab}
+          onChange={handleRatioTabChange}
+        >
           <Tabs.TabPane tab={t('模型定价设置')} itemKey='pricing'>
             <ModelPricingCombined options={inputs} refresh={onRefresh} />
           </Tabs.TabPane>

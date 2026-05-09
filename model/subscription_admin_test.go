@@ -120,3 +120,94 @@ func TestAdminAdjustUserSubscriptionTime_ExpiresShortenedSubscription(t *testing
 	assert.Equal(t, int64(0), updated.NextResetTime)
 	assert.Equal(t, "default", getUserGroupForSubscriptionAdminTest(t, 602))
 }
+
+func TestListAdminUserSubscriptions_WithUsageAggregation(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForSubscriptionAdminTest(t, 603, "default")
+	plan := insertPlanForSubscriptionAdminTest(t, 703, "")
+	now := GetDBTimestamp()
+	sub := &UserSubscription{
+		UserId:        603,
+		PlanId:        plan.Id,
+		AmountTotal:   5000,
+		AmountUsed:    1200,
+		StartTime:     now - 5*24*3600,
+		EndTime:       now + 10*24*3600,
+		Status:        "active",
+		Source:        "admin",
+		LastResetTime: now - 5*24*3600,
+	}
+	require.NoError(t, DB.Create(sub).Error)
+	otherSub := &UserSubscription{
+		UserId:        603,
+		PlanId:        plan.Id,
+		AmountTotal:   5000,
+		AmountUsed:    100,
+		StartTime:     now - 5*24*3600,
+		EndTime:       now + 9*24*3600,
+		Status:        "active",
+		Source:        "admin",
+		LastResetTime: now - 5*24*3600,
+	}
+	require.NoError(t, DB.Create(otherSub).Error)
+
+	todayOther := common.MapToJsonStr(map[string]interface{}{
+		"billing_source":        "subscription",
+		"subscription_id":       sub.Id,
+		"subscription_consumed": 321,
+	})
+	previousOther := common.MapToJsonStr(map[string]interface{}{
+		"billing_source":        "subscription",
+		"subscription_id":       sub.Id,
+		"subscription_consumed": 179,
+	})
+	require.NoError(t, LOG_DB.Create(&Log{
+		UserId:    603,
+		CreatedAt: now,
+		Type:      LogTypeConsume,
+		Quota:     999,
+		Other:     todayOther,
+	}).Error)
+	require.NoError(t, LOG_DB.Create(&Log{
+		UserId:    603,
+		CreatedAt: now - 2*24*3600,
+		Type:      LogTypeConsume,
+		Quota:     179,
+		Other:     previousOther,
+	}).Error)
+	otherSubOther := common.MapToJsonStr(map[string]interface{}{
+		"billing_source":        "subscription",
+		"subscription_id":       otherSub.Id,
+		"subscription_consumed": 250,
+	})
+	require.NoError(t, LOG_DB.Create(&Log{
+		UserId:    603,
+		CreatedAt: now,
+		Type:      LogTypeConsume,
+		Quota:     250,
+		Other:     otherSubOther,
+	}).Error)
+
+	result, err := ListAdminUserSubscriptions(AdminUserSubscriptionFilters{
+		Keyword: "subscription_admin_user",
+		Status:  "active",
+	}, &common.PageInfo{Page: 1, PageSize: 1})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, result.Items, 1)
+
+	item := result.Items[0]
+	require.NotNil(t, item.Subscription)
+	require.NotNil(t, item.Plan)
+	require.NotNil(t, item.User)
+	assert.Equal(t, sub.Id, item.Subscription.Id)
+	assert.Equal(t, plan.Id, item.Plan.Id)
+	assert.Equal(t, 603, item.User.Id)
+	assert.Equal(t, int64(3800), item.RemainingQuota)
+	assert.Equal(t, int64(321), item.TodayUsed)
+	assert.Equal(t, int64(500), item.Last7dUsed)
+	assert.Equal(t, int64(2), result.Stats.Active)
+	assert.Equal(t, int64(571), result.Stats.TodayUsed)
+	assert.Equal(t, int64(750), result.Stats.Last7dUsed)
+}

@@ -53,6 +53,45 @@ export interface UserSubscriptionRecord {
   subscription: UserSubscription
 }
 
+export interface SubscriptionUserSummary {
+  id: number
+  username?: string
+  display_name?: string
+  email?: string
+  group?: string
+  status?: number
+}
+
+export interface AdminUserSubscriptionRecord extends UserSubscriptionRecord {
+  plan?: SubscriptionPlan
+  user?: SubscriptionUserSummary
+  remaining_quota: number
+  remaining_days: number
+  today_used: number
+  last_7d_used: number
+  daily_usage?: Record<string, number>
+}
+
+export interface AdminUserSubscriptionStats {
+  total: number
+  active: number
+  expired: number
+  cancelled: number
+  expiring_7d: number
+  today_used: number
+  last_7d_used: number
+  unlimited: number
+  quota_limited: number
+}
+
+export interface AdminUserSubscriptionsResponse {
+  items: AdminUserSubscriptionRecord[]
+  total: number
+  page: number
+  page_size: number
+  stats: AdminUserSubscriptionStats
+}
+
 // ============================================================================
 // API Request/Response Types
 // ============================================================================

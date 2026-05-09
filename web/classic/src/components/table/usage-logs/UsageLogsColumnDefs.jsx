@@ -36,7 +36,7 @@ import {
   renderTieredModelPriceSimple,
 } from '../../../helpers';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
-import { CircleAlert, Route, Sparkles } from 'lucide-react';
+import { CircleAlert, GitBranch, Route, Sparkles } from 'lucide-react';
 
 const colors = [
   'amber',
@@ -80,7 +80,7 @@ function buildChannelAffinityTooltip(affinity, t) {
   const lines = [
     t('渠道亲和性'),
     `${t('规则')}：${affinity.rule_name || '-'}`,
-    `${t('分组')}：${affinity.selected_group || '-'}`,
+    `${t('分组')}：${affinity.using_group || affinity.selected_group || '-'}`,
     `${t('Key')}：${keyText}`,
     ...(keyHint ? [`${t('Key 摘要')}：${keyHint}`] : []),
   ];
@@ -100,6 +100,41 @@ function getRetryChainFromLogOther(other) {
     return '';
   }
   return useChannel.join('->');
+}
+
+function renderRetryChainTag(retryChain, t) {
+  if (!retryChain) return null;
+  return (
+    <Tooltip
+      content={
+        <div style={{ lineHeight: 1.6, maxWidth: 360 }}>
+          <div style={{ fontWeight: 600 }}>{t('重试链路')}</div>
+          <div style={{ wordBreak: 'break-all' }}>{retryChain}</div>
+        </div>
+      }
+    >
+      <Tag
+        color='light-blue'
+        shape='circle'
+        type='light'
+        prefixIcon={<GitBranch size={13} />}
+        style={{ maxWidth: 220 }}
+      >
+        <span
+          style={{
+            display: 'inline-block',
+            maxWidth: 170,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            verticalAlign: 'bottom',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {retryChain}
+        </span>
+      </Tag>
+    </Tooltip>
+  );
 }
 
 // Render functions
@@ -532,8 +567,8 @@ export const getLogsColumns = ({
             record.type === 2 ||
             record.type === 5 ||
             record.type === 6) ? (
-          <Space>
-            <span style={{ position: 'relative', display: 'inline-block' }}>
+          <Space wrap>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <Tooltip content={record.channel_name || t('未知渠道')}>
                 <span>
                   <Tag
@@ -557,16 +592,22 @@ export const getLogsColumns = ({
                     </div>
                   }
                 >
-                  <span
+                  <button
+                    type='button'
                     style={{
-                      position: 'absolute',
-                      right: -4,
-                      top: -4,
-                      lineHeight: 1,
-                      fontWeight: 600,
-                      color: '#f59e0b',
+                      alignItems: 'center',
+                      background: 'var(--semi-color-warning-light-default)',
+                      border: '1px solid var(--semi-color-warning)',
+                      borderRadius: 999,
+                      color: 'var(--semi-color-warning)',
                       cursor: 'pointer',
+                      display: 'inline-flex',
+                      height: 20,
+                      justifyContent: 'center',
+                      lineHeight: 1,
+                      padding: 0,
                       userSelect: 'none',
+                      width: 20,
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -574,12 +615,12 @@ export const getLogsColumns = ({
                     }}
                   >
                     <Sparkles
-                      size={14}
+                      size={12}
                       strokeWidth={2}
                       color='currentColor'
                       fill='currentColor'
                     />
-                  </span>
+                  </button>
                 </Tooltip>
               )}
             </span>
@@ -588,13 +629,7 @@ export const getLogsColumns = ({
                 {multiKeyIndex}
               </Tag>
             )}
-            {retryChain && (
-              <Tooltip content={`${t('重试链路')}：${retryChain}`}>
-                <Tag color='red' shape='circle'>
-                  {retryChain}
-                </Tag>
-              </Tooltip>
-            )}
+            {renderRetryChainTag(retryChain, t)}
           </Space>
         ) : null;
       },
@@ -895,10 +930,13 @@ export const getLogsColumns = ({
         }
         let content = t('渠道') + `：${record.channel}`;
         let retryChain = getRetryChainFromLogOther(getLogOther(record.other));
-        if (retryChain) {
-          content = t('重试链路') + `：${retryChain}`;
-        }
-        return isAdminUser ? <div>{content}</div> : <></>;
+        return isAdminUser ? (
+          <div>
+            {retryChain ? renderRetryChainTag(retryChain, t) : content}
+          </div>
+        ) : (
+          <></>
+        );
       },
     },
     {

@@ -36,11 +36,17 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { API, showError, showSuccess } from '../../../../helpers';
-import { convertUSDToCurrency } from '../../../../helpers/render';
+import { convertUSDToCurrency, renderQuota } from '../../../../helpers/render';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import CardTable from '../../../common/ui/CardTable';
 
 const { Text } = Typography;
+
+function formatInternalQuota(value) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
+    Number(value || 0),
+  );
+}
 
 function formatTs(ts) {
   if (!ts) return '-';
@@ -378,7 +384,19 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
           const used = Number(sub?.amount_used || 0);
           return (
             <Text type={total > 0 ? 'secondary' : 'tertiary'}>
-              {total > 0 ? `${used}/${total}` : t('不限')}
+              {total > 0 ? (
+                <div>
+                  <div>
+                    {renderQuota(used)}/{renderQuota(total)}
+                  </div>
+                  <div className='text-xs text-gray-500'>
+                    {t('内部额度单位')}：{formatInternalQuota(used)}/
+                    {formatInternalQuota(total)}
+                  </div>
+                </div>
+              ) : (
+                t('不限')
+              )}
             </Text>
           );
         },

@@ -6,7 +6,7 @@ import {
   useCallback,
   useRef,
 } from 'react'
-import { useForm } from 'react-hook-form'
+import { type Resolver, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -366,7 +366,9 @@ export function ChannelMutateDrawer({
 
   // Form setup
   const form = useForm<ChannelFormValues>({
-    resolver: zodResolver(channelFormSchema),
+    resolver: zodResolver(
+      channelFormSchema
+    ) as unknown as Resolver<ChannelFormValues>,
     defaultValues: CHANNEL_FORM_DEFAULT_VALUES,
   })
 
