@@ -20,6 +20,9 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const behaviorSchema = z.object({
   RetryTimes: z.coerce.number().min(0).max(10),
+  CodexFailoverMaxAttempts: z.coerce.number().min(0).max(10000),
+  CodexFailoverMaxDurationSeconds: z.coerce.number().min(1).max(300),
+  CodexTempUnavailableCooldownSeconds: z.coerce.number().min(0).max(3600),
   DefaultCollapseSidebar: z.boolean(),
   DemoSiteEnabled: z.boolean(),
   SelfUseModeEnabled: z.boolean(),
@@ -86,6 +89,94 @@ export function SystemBehaviorSection({
               </FormItem>
             )}
           />
+
+          <div className='grid gap-4 sm:grid-cols-3'>
+            <FormField
+              control={form.control}
+              name='CodexFailoverMaxAttempts'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Codex Max Failover Attempts')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min='0'
+                      max='10000'
+                      value={field.value as number}
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Maximum Codex OAuth account switches per request. 0 means automatic until the duration limit.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='CodexFailoverMaxDurationSeconds'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Codex Failover Duration Limit')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min='1'
+                      max='300'
+                      value={field.value as number}
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Maximum total failover time in seconds. Use 180-300 for large Codex pools.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='CodexTempUnavailableCooldownSeconds'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    {t('Codex Temporary Failure Cooldown')}
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min='0'
+                      max='3600'
+                      value={field.value as number}
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Cooldown seconds after Codex 5xx or network failures. 0 disables temporary cooldown.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
           <FormField
             control={form.control}

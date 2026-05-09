@@ -11,6 +11,9 @@ import {
 
 const defaultOperationsSettings: OperationsSettings = {
   RetryTimes: 0,
+  CodexFailoverMaxAttempts: 0,
+  CodexFailoverMaxDurationSeconds: 180,
+  CodexTempUnavailableCooldownSeconds: 60,
   DefaultCollapseSidebar: false,
   DemoSiteEnabled: false,
   SelfUseModeEnabled: false,

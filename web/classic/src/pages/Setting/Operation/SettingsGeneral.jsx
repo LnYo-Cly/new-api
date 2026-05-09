@@ -52,6 +52,9 @@ export default function GeneralSettings(props) {
     'general_setting.custom_currency_exchange_rate': '',
     QuotaPerUnit: '',
     RetryTimes: '',
+    CodexFailoverMaxAttempts: 0,
+    CodexFailoverMaxDurationSeconds: 180,
+    CodexTempUnavailableCooldownSeconds: 60,
     USDExchangeRate: '',
     DisplayTokenStatEnabled: false,
     DefaultCollapseSidebar: false,
@@ -271,6 +274,52 @@ export default function GeneralSettings(props) {
                   placeholder={t('失败重试次数')}
                   onChange={handleFieldChange('RetryTimes')}
                   showClear
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  field={'CodexFailoverMaxAttempts'}
+                  label={t('Codex 最大换号次数')}
+                  min={0}
+                  max={10000}
+                  step={1}
+                  placeholder={'0'}
+                  extraText={t(
+                    '每个请求最多切换的 Codex OAuth 账号数，0 表示在总耗时限制内自动尝试',
+                  )}
+                  onChange={handleFieldChange('CodexFailoverMaxAttempts')}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  field={'CodexFailoverMaxDurationSeconds'}
+                  label={t('Codex 换号总耗时限制')}
+                  min={1}
+                  max={300}
+                  step={1}
+                  placeholder={'180'}
+                  extraText={t(
+                    'Codex OAuth 失败切换的最大总耗时，建议大型账号池设置为 180-300 秒',
+                  )}
+                  onChange={handleFieldChange(
+                    'CodexFailoverMaxDurationSeconds',
+                  )}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  field={'CodexTempUnavailableCooldownSeconds'}
+                  label={t('Codex 临时失败冷却')}
+                  min={0}
+                  max={3600}
+                  step={1}
+                  placeholder={'60'}
+                  extraText={t(
+                    'Codex 5xx 或网络错误后的冷却秒数，0 表示不启用临时冷却',
+                  )}
+                  onChange={handleFieldChange(
+                    'CodexTempUnavailableCooldownSeconds',
+                  )}
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>

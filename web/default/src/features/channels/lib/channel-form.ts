@@ -56,6 +56,8 @@ export const channelFormSchema = z.object({
   allow_inference_geo: z.boolean().optional(), // OpenAI/Anthropic: inference geography
   allow_speed: z.boolean().optional(), // Anthropic: speed mode control
   claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
+  codex_max_inflight: z.coerce.number().min(0).max(10000).optional(), // Codex OAuth hard concurrency cap
+  codex_soft_inflight: z.coerce.number().min(0).max(10000).optional(), // Codex OAuth soft concurrency threshold
   // Upstream model update settings (stored in settings JSON)
   upstream_model_update_check_enabled: z.boolean().optional(),
   upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -114,6 +116,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_inference_geo: false,
   allow_speed: false,
   claude_beta_query: false,
+  codex_max_inflight: 0,
+  codex_soft_inflight: 0,
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -168,6 +172,8 @@ export function transformChannelToFormDefaults(
   let allowInferenceGeo = false
   let allowSpeed = false
   let claudeBetaQuery = false
+  let codexMaxInflight = 0
+  let codexSoftInflight = 0
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
@@ -186,6 +192,8 @@ export function transformChannelToFormDefaults(
       allowInferenceGeo = parsed.allow_inference_geo === true
       allowSpeed = parsed.allow_speed === true
       claudeBetaQuery = parsed.claude_beta_query === true
+      codexMaxInflight = Math.max(0, Number(parsed.codex_max_inflight) || 0)
+      codexSoftInflight = Math.max(0, Number(parsed.codex_soft_inflight) || 0)
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
       upstreamModelUpdateAutoSyncEnabled =
@@ -240,6 +248,8 @@ export function transformChannelToFormDefaults(
     allow_inference_geo: allowInferenceGeo,
     allow_speed: allowSpeed,
     claude_beta_query: claudeBetaQuery,
+    codex_max_inflight: codexMaxInflight,
+    codex_soft_inflight: codexSoftInflight,
     allow_safety_identifier: allowSafetyIdentifier,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
@@ -340,6 +350,22 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   } else {
     if ('allow_speed' in settingsObj) delete settingsObj.allow_speed
     if ('claude_beta_query' in settingsObj) delete settingsObj.claude_beta_query
+  }
+
+  // Codex OAuth account pool controls (type 57).
+  if (formData.type === 57) {
+    settingsObj.codex_max_inflight = Math.max(
+      0,
+      Number(formData.codex_max_inflight) || 0
+    )
+    settingsObj.codex_soft_inflight = Math.max(
+      0,
+      Number(formData.codex_soft_inflight) || 0
+    )
+  } else {
+    if ('codex_max_inflight' in settingsObj) delete settingsObj.codex_max_inflight
+    if ('codex_soft_inflight' in settingsObj)
+      delete settingsObj.codex_soft_inflight
   }
 
   // Upstream model update settings (for model-fetchable channel types)

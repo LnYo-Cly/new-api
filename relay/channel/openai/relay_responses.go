@@ -1,12 +1,14 @@
 package openai
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -78,6 +80,11 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
+	bufferBeforeOutput := info != nil && info.ChannelMeta != nil && info.ChannelType == constant.ChannelTypeCodex
+	bufferedData := make([]responsesStreamBufferedEvent, 0, 4)
+	clientOutputStarted := false
+	completed := false
+	var streamHandlerErr error
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -88,9 +95,36 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			sr.Error(err)
 			return
 		}
-		sendResponsesStreamData(c, streamResponse, data)
+		if oaiErr := extractResponsesStreamOpenAIError(streamResponse); oaiErr != nil {
+			streamHandlerErr = errors.New(oaiErr.Message)
+			if !clientOutputStarted {
+				sr.Stop(streamHandlerErr)
+				return
+			}
+			sendResponsesStreamData(c, streamResponse, data)
+			return
+		}
+		isOutputEvent := isResponsesStreamOutputEvent(streamResponse)
+		if bufferBeforeOutput && !clientOutputStarted {
+			if !isOutputEvent {
+				bufferedData = append(bufferedData, responsesStreamBufferedEvent{response: streamResponse, data: data})
+			} else {
+				for _, item := range bufferedData {
+					sendResponsesStreamData(c, item.response, item.data)
+				}
+				bufferedData = nil
+				sendResponsesStreamData(c, streamResponse, data)
+				clientOutputStarted = true
+			}
+		} else {
+			sendResponsesStreamData(c, streamResponse, data)
+			if isOutputEvent {
+				clientOutputStarted = true
+			}
+		}
 		switch streamResponse.Type {
 		case "response.completed":
+			completed = true
 			if streamResponse.Response != nil {
 				if streamResponse.Response.Usage != nil {
 					if streamResponse.Response.Usage.InputTokens != 0 {
@@ -130,6 +164,17 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 	})
 
+	if streamHandlerErr != nil && !clientOutputStarted {
+		return nil, types.NewOpenAIError(streamHandlerErr, types.ErrorCodeBadResponse, http.StatusBadGateway)
+	}
+	if bufferBeforeOutput && !completed && !clientOutputStarted {
+		reason := "codex stream disconnected before response.completed"
+		if info != nil && info.StreamStatus != nil && info.StreamStatus.EndReason != "" {
+			reason = fmt.Sprintf("%s: %s", reason, info.StreamStatus.EndReason)
+		}
+		return nil, types.NewOpenAIError(errors.New(reason), types.ErrorCodeBadResponse, http.StatusBadGateway)
+	}
+
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量
 		tempStr := responseTextBuilder.String()
@@ -147,4 +192,34 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
 	return usage, nil
+}
+
+type responsesStreamBufferedEvent struct {
+	response dto.ResponsesStreamResponse
+	data     string
+}
+
+func isResponsesStreamOutputEvent(streamResponse dto.ResponsesStreamResponse) bool {
+	switch streamResponse.Type {
+	case "response.output_text.delta",
+		"response.function_call_arguments.delta",
+		"response.audio.delta",
+		"response.audio_transcript.delta",
+		dto.ResponsesOutputTypeItemAdded,
+		dto.ResponsesOutputTypeItemDone:
+		return true
+	default:
+		return false
+	}
+}
+
+func extractResponsesStreamOpenAIError(streamResponse dto.ResponsesStreamResponse) *types.OpenAIError {
+	if streamResponse.Response == nil {
+		return nil
+	}
+	oaiErr := streamResponse.Response.GetOpenAIError()
+	if oaiErr == nil || strings.TrimSpace(oaiErr.Message) == "" {
+		return nil
+	}
+	return oaiErr
 }

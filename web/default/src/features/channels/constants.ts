@@ -141,8 +141,9 @@ export const CHANNEL_STATUS_CONFIG = {
 export const CODEX_ACCOUNT_STATUS_OPTIONS = [
   { value: 'all', label: 'All Codex Status' },
   { value: 'available', label: 'Available' },
-  { value: 'quota_exhausted', label: 'Quota Exhausted' },
+  { value: 'limited', label: 'Limited' },
   { value: 'credential_invalid', label: 'Credential Invalid' },
+  { value: 'temp_unavailable', label: 'Temporarily Unavailable' },
   { value: 'query_failed', label: 'Query Failed' },
   { value: 'not_checked', label: 'Not Checked' },
 ] as const

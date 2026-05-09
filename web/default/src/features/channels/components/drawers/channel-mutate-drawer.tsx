@@ -224,7 +224,9 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
-    values.upstream_model_update_ignored_models?.trim()
+    values.upstream_model_update_ignored_models?.trim() ||
+    values.codex_max_inflight ||
+    values.codex_soft_inflight
   )
 }
 
@@ -3075,6 +3077,79 @@ export function ChannelMutateDrawer({
                               />
                             </>
                           )}
+                        </div>
+                      </div>
+                    )}
+
+                    {currentType === 57 && (
+                      <div className='space-y-4 rounded-lg border p-4'>
+                        <SubHeading
+                          title={t('Codex Account Pool Settings')}
+                          icon={<Route className='h-3.5 w-3.5' />}
+                        />
+                        <div className='grid gap-4 sm:grid-cols-2'>
+                          <FormField
+                            control={form.control}
+                            name='codex_max_inflight'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>
+                                  {t('Max concurrent requests')}
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type='number'
+                                    min='0'
+                                    max='10000'
+                                    value={field.value ?? 0}
+                                    onChange={(e) =>
+                                      field.onChange(e.target.valueAsNumber)
+                                    }
+                                    name={field.name}
+                                    onBlur={field.onBlur}
+                                    ref={field.ref}
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  {t(
+                                    'Hard concurrency cap for this Codex OAuth account. 0 means no fixed cap.'
+                                  )}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name='codex_soft_inflight'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>
+                                  {t('Soft concurrent requests')}
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type='number'
+                                    min='0'
+                                    max='10000'
+                                    value={field.value ?? 0}
+                                    onChange={(e) =>
+                                      field.onChange(e.target.valueAsNumber)
+                                    }
+                                    name={field.name}
+                                    onBlur={field.onBlur}
+                                    ref={field.ref}
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  {t(
+                                    'When current requests reach this value, scheduling weight is reduced. 0 disables soft weighting.'
+                                  )}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         </div>
                       </div>
                     )}

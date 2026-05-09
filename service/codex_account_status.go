@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 )
@@ -12,10 +13,16 @@ const (
 	CodexAccountStatusKey               = "codex_account"
 	CodexAccountStatusAvailable         = "available"
 	CodexAccountStatusQuotaExhausted    = "quota_exhausted"
+	CodexAccountStatusLimited           = "limited"
 	CodexAccountStatusCredentialInvalid = "credential_invalid"
+	CodexAccountStatusTempUnavailable   = "temp_unavailable"
 	CodexAccountStatusQueryFailed       = "query_failed"
 	CodexAccountStatusUnknown           = "unknown"
 	CodexAccountStatusNotChecked        = "not_checked"
+
+	CodexRateLimitWindowFiveHour = "five_hour"
+	CodexRateLimitWindowWeekly   = "weekly"
+	CodexRateLimitWindowUnknown  = "unknown"
 )
 
 type CodexRateLimitWindowSummary struct {
@@ -31,6 +38,7 @@ type CodexAccountStatusSummary struct {
 	Message        string                        `json:"message,omitempty"`
 	UpstreamStatus int                           `json:"upstream_status,omitempty"`
 	CheckedAt      int64                         `json:"checked_at,omitempty"`
+	CooldownUntil  int64                         `json:"cooldown_until,omitempty"`
 	PlanType       string                        `json:"plan_type,omitempty"`
 	Email          string                        `json:"email,omitempty"`
 	AccountID      string                        `json:"account_id,omitempty"`
@@ -41,17 +49,48 @@ type CodexAccountStatusSummary struct {
 	Raw            map[string]interface{}        `json:"-"`
 }
 
+func NormalizeCodexAccountStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case CodexAccountStatusQuotaExhausted:
+		return CodexAccountStatusLimited
+	case CodexAccountStatusAvailable,
+		CodexAccountStatusLimited,
+		CodexAccountStatusCredentialInvalid,
+		CodexAccountStatusTempUnavailable,
+		CodexAccountStatusQueryFailed,
+		CodexAccountStatusNotChecked,
+		CodexAccountStatusUnknown:
+		return strings.ToLower(strings.TrimSpace(status))
+	default:
+		return CodexAccountStatusUnknown
+	}
+}
+
 func NewCodexAccountQueryFailedSummary(statusCode int, message string) CodexAccountStatusSummary {
 	status := CodexAccountStatusQueryFailed
 	if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden ||
 		IsCodexCredentialInvalidError(fmt.Errorf("%s", message)) {
 		status = CodexAccountStatusCredentialInvalid
+	} else if statusCode == http.StatusTooManyRequests {
+		status = CodexAccountStatusLimited
+	} else if statusCode >= http.StatusInternalServerError && statusCode <= 599 {
+		status = CodexAccountStatusTempUnavailable
 	}
 	return CodexAccountStatusSummary{
 		Status:         status,
 		Message:        strings.TrimSpace(message),
 		UpstreamStatus: statusCode,
 		CheckedAt:      common.GetTimestamp(),
+	}
+}
+
+func NewCodexAccountTempUnavailableSummary(statusCode int, message string, cooldownUntil int64) CodexAccountStatusSummary {
+	return CodexAccountStatusSummary{
+		Status:         CodexAccountStatusTempUnavailable,
+		Message:        strings.TrimSpace(message),
+		UpstreamStatus: statusCode,
+		CheckedAt:      common.GetTimestamp(),
+		CooldownUntil:  cooldownUntil,
 	}
 }
 
@@ -88,7 +127,13 @@ func BuildCodexAccountStatusSummary(statusCode int, payload any, fallbackMessage
 		return summary
 	}
 	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
-		summary.Status = CodexAccountStatusQueryFailed
+		if statusCode == http.StatusTooManyRequests {
+			summary.Status = CodexAccountStatusLimited
+		} else if statusCode >= http.StatusInternalServerError && statusCode <= 599 {
+			summary.Status = CodexAccountStatusTempUnavailable
+		} else {
+			summary.Status = CodexAccountStatusQueryFailed
+		}
 		summary.Message = firstNonEmpty(summary.Message, fmt.Sprintf("upstream status: %d", statusCode))
 		return summary
 	}
@@ -103,10 +148,11 @@ func BuildCodexAccountStatusSummary(statusCode int, payload any, fallbackMessage
 	limitReached, hasLimitReached := getBoolFromMapWithOK(rateLimit, "limit_reached")
 	maxPercent := maxCodexWindowPercent(summary.Windows)
 	if hasRateLimit && ((hasAllowed && !allowed) || (hasLimitReached && limitReached) || maxPercent >= 100) {
-		summary.Status = CodexAccountStatusQuotaExhausted
+		summary.Status = CodexAccountStatusLimited
 		if summary.Message == "" {
-			summary.Message = "codex quota exhausted"
+			summary.Message = "codex account limited"
 		}
+		summary.CooldownUntil = codexCooldownUntilFromWindows(summary.Windows)
 		return summary
 	}
 
@@ -134,10 +180,11 @@ func ReadCodexAccountStatusFromOtherInfo(otherInfo string) (CodexAccountStatusSu
 		return CodexAccountStatusSummary{}, false
 	}
 	summary := CodexAccountStatusSummary{
-		Status:         firstNonEmpty(getStringFromMap(raw, "status"), CodexAccountStatusUnknown),
+		Status:         NormalizeCodexAccountStatus(firstNonEmpty(getStringFromMap(raw, "status"), CodexAccountStatusUnknown)),
 		Message:        getStringFromMap(raw, "message"),
 		UpstreamStatus: int(getFloatFromMap(raw, "upstream_status")),
 		CheckedAt:      int64(getFloatFromMap(raw, "checked_at")),
+		CooldownUntil:  int64(getFloatFromMap(raw, "cooldown_until")),
 		PlanType:       getStringFromMap(raw, "plan_type"),
 		Email:          getStringFromMap(raw, "email"),
 		AccountID:      getStringFromMap(raw, "account_id"),
@@ -157,7 +204,7 @@ func GetCodexAccountStatusValue(otherInfo string) string {
 	if !ok || strings.TrimSpace(summary.Status) == "" {
 		return CodexAccountStatusNotChecked
 	}
-	return strings.TrimSpace(summary.Status)
+	return NormalizeCodexAccountStatus(summary.Status)
 }
 
 func MergeCodexAccountStatusIntoOtherInfo(otherInfo string, summary CodexAccountStatusSummary) string {
@@ -185,31 +232,32 @@ func summarizeCodexRateLimitWindows(rateLimit map[string]interface{}) ([]CodexRa
 	var weekly *CodexRateLimitWindowSummary
 	for i := range windows {
 		window := &windows[i]
-		if window.WindowSeconds >= 24*60*60 {
-			window.Label = "weekly"
+		window.Label = classifyCodexRateLimitWindow(window.WindowSeconds)
+		switch window.Label {
+		case CodexRateLimitWindowWeekly:
 			if weekly == nil {
 				copyWindow := *window
 				weekly = &copyWindow
 			}
-		} else {
-			window.Label = "five_hour"
+		case CodexRateLimitWindowFiveHour:
 			if fiveHour == nil {
 				copyWindow := *window
 				fiveHour = &copyWindow
 			}
 		}
 	}
-	if fiveHour == nil && len(windows) > 0 {
-		copyWindow := windows[0]
-		copyWindow.Label = "five_hour"
-		fiveHour = &copyWindow
-	}
-	if weekly == nil && len(windows) > 1 {
-		copyWindow := windows[1]
-		copyWindow.Label = "weekly"
-		weekly = &copyWindow
-	}
 	return windows, fiveHour, weekly
+}
+
+func classifyCodexRateLimitWindow(windowSeconds int64) string {
+	switch {
+	case windowSeconds >= 17_400 && windowSeconds <= 18_600:
+		return CodexRateLimitWindowFiveHour
+	case windowSeconds >= 604_200 && windowSeconds <= 605_400:
+		return CodexRateLimitWindowWeekly
+	default:
+		return CodexRateLimitWindowUnknown
+	}
 }
 
 func codexWindowFromMap(raw map[string]interface{}) *CodexRateLimitWindowSummary {
@@ -237,6 +285,24 @@ func maxCodexWindowPercent(windows []CodexRateLimitWindowSummary) int {
 		}
 	}
 	return maxPercent
+}
+
+func codexCooldownUntilFromWindows(windows []CodexRateLimitWindowSummary) int64 {
+	now := common.GetTimestamp()
+	var cooldownUntil int64
+	for _, window := range windows {
+		candidate := window.ResetAt
+		if candidate <= 0 && window.ResetAfterSeconds > 0 {
+			candidate = now + window.ResetAfterSeconds
+		}
+		if candidate > cooldownUntil {
+			cooldownUntil = candidate
+		}
+	}
+	if cooldownUntil <= now {
+		return now + int64((10 * time.Minute).Seconds())
+	}
+	return cooldownUntil
 }
 
 func clampCodexPercent(value float64) int {

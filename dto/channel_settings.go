@@ -41,6 +41,8 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateLastDetectedModels []string      `json:"upstream_model_update_last_detected_models,omitempty"` // 上次检测到的可加入模型
 	UpstreamModelUpdateLastRemovedModels  []string      `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
 	UpstreamModelUpdateIgnoredModels      []string      `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
+	CodexMaxInflight                      int           `json:"codex_max_inflight,omitempty"`                         // Codex OAuth 渠道最大并发，0 表示自动
+	CodexSoftInflight                     int           `json:"codex_soft_inflight,omitempty"`                        // Codex OAuth 渠道软并发阈值，达到后降低调度权重
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {

@@ -241,6 +241,9 @@ export type BillingSettings = {
 
 export type OperationsSettings = {
   RetryTimes: number
+  CodexFailoverMaxAttempts: number
+  CodexFailoverMaxDurationSeconds: number
+  CodexTempUnavailableCooldownSeconds: number
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean

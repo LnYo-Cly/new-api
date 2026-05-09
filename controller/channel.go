@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -68,10 +67,12 @@ func parseCodexAccountStatusFilter(c *gin.Context) string {
 	switch status {
 	case service.CodexAccountStatusAvailable,
 		service.CodexAccountStatusQuotaExhausted,
+		service.CodexAccountStatusLimited,
 		service.CodexAccountStatusCredentialInvalid,
+		service.CodexAccountStatusTempUnavailable,
 		service.CodexAccountStatusQueryFailed,
 		service.CodexAccountStatusNotChecked:
-		return status
+		return service.NormalizeCodexAccountStatus(status)
 	default:
 		return ""
 	}
@@ -80,8 +81,9 @@ func parseCodexAccountStatusFilter(c *gin.Context) string {
 func codexAccountStatusFilterValues() []string {
 	return []string{
 		service.CodexAccountStatusAvailable,
-		service.CodexAccountStatusQuotaExhausted,
+		service.CodexAccountStatusLimited,
 		service.CodexAccountStatusCredentialInvalid,
+		service.CodexAccountStatusTempUnavailable,
 		service.CodexAccountStatusQueryFailed,
 		service.CodexAccountStatusNotChecked,
 	}
@@ -91,10 +93,12 @@ func normalizeCodexAccountStatusFilterValue(status string) string {
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case service.CodexAccountStatusAvailable,
 		service.CodexAccountStatusQuotaExhausted,
+		service.CodexAccountStatusLimited,
 		service.CodexAccountStatusCredentialInvalid,
+		service.CodexAccountStatusTempUnavailable,
 		service.CodexAccountStatusQueryFailed,
 		service.CodexAccountStatusNotChecked:
-		return strings.ToLower(strings.TrimSpace(status))
+		return service.NormalizeCodexAccountStatus(status)
 	default:
 		return service.CodexAccountStatusNotChecked
 	}
@@ -704,7 +708,7 @@ func getVertexArrayKeys(keys string) ([]string, error) {
 		case string:
 			keyStr = strings.TrimSpace(v)
 		default:
-			bytes, err := json.Marshal(v)
+			bytes, err := common.Marshal(v)
 			if err != nil {
 				return nil, fmt.Errorf("Vertex AI key JSON 编码失败: %w", err)
 			}
@@ -928,7 +932,8 @@ func EditTagChannels(c *gin.Context) {
 	}
 	if channelTag.ParamOverride != nil {
 		trimmed := strings.TrimSpace(*channelTag.ParamOverride)
-		if trimmed != "" && !json.Valid([]byte(trimmed)) {
+		var payload any
+		if trimmed != "" && common.Unmarshal([]byte(trimmed), &payload) != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "参数覆盖必须是合法的 JSON 格式",
@@ -939,7 +944,8 @@ func EditTagChannels(c *gin.Context) {
 	}
 	if channelTag.HeaderOverride != nil {
 		trimmed := strings.TrimSpace(*channelTag.HeaderOverride)
-		if trimmed != "" && !json.Valid([]byte(trimmed)) {
+		var payload any
+		if trimmed != "" && common.Unmarshal([]byte(trimmed), &payload) != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "请求头覆盖必须是合法的 JSON 格式",
@@ -1383,11 +1389,16 @@ func UpdateChannel(c *gin.Context) {
 				// 解析现有密钥
 				if strings.HasPrefix(strings.TrimSpace(originChannel.Key), "[") {
 					// JSON数组格式
-					var arr []json.RawMessage
-					if err := json.Unmarshal([]byte(strings.TrimSpace(originChannel.Key)), &arr); err == nil {
+					var arr []interface{}
+					if err := common.Unmarshal([]byte(strings.TrimSpace(originChannel.Key)), &arr); err == nil {
 						existingKeys = make([]string, len(arr))
 						for i, v := range arr {
-							existingKeys[i] = string(v)
+							bytes, marshalErr := common.Marshal(v)
+							if marshalErr != nil {
+								existingKeys[i] = fmt.Sprintf("%v", v)
+							} else {
+								existingKeys[i] = string(bytes)
+							}
 						}
 					}
 				} else {
@@ -1569,7 +1580,7 @@ func FetchModels(c *gin.Context) {
 		} `json:"data"`
 	}
 
-	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+	if err := common.DecodeJson(response.Body, &result); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -2315,7 +2326,7 @@ func OllamaPullModelStream(c *gin.Context) {
 
 	// 创建进度回调函数
 	progressCallback := func(progress ollama.OllamaPullResponse) {
-		data, _ := json.Marshal(progress)
+		data, _ := common.Marshal(progress)
 		fmt.Fprintf(c.Writer, "data: %s\n\n", string(data))
 		c.Writer.Flush()
 	}
@@ -2324,12 +2335,12 @@ func OllamaPullModelStream(c *gin.Context) {
 	err = ollama.PullOllamaModelStream(baseURL, key, req.ModelName, progressCallback)
 
 	if err != nil {
-		errorData, _ := json.Marshal(gin.H{
+		errorData, _ := common.Marshal(gin.H{
 			"error": err.Error(),
 		})
 		fmt.Fprintf(c.Writer, "data: %s\n\n", string(errorData))
 	} else {
-		successData, _ := json.Marshal(gin.H{
+		successData, _ := common.Marshal(gin.H{
 			"message": fmt.Sprintf("Model %s pulled successfully", req.ModelName),
 		})
 		fmt.Fprintf(c.Writer, "data: %s\n\n", string(successData))

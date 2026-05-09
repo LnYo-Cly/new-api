@@ -74,6 +74,9 @@ export const useChannelsData = () => {
   const [statusFilter, setStatusFilter] = useState(
     localStorage.getItem('channel-status-filter') || 'all',
   );
+  const [codexStatusFilter, setCodexStatusFilter] = useState(
+    localStorage.getItem('channel-codex-status-filter') || 'all',
+  );
 
   // Type tabs states
   const [activeTypeKey, setActiveTypeKey] = useState('all');
@@ -136,6 +139,7 @@ export const useChannelsData = () => {
     GROUP: 'group',
     TYPE: 'type',
     STATUS: 'status',
+    CODEX_STATUS: 'codex_status',
     RESPONSE_TIME: 'response_time',
     BALANCE: 'balance',
     PRIORITY: 'priority',
@@ -176,6 +180,7 @@ export const useChannelsData = () => {
       [COLUMN_KEYS.GROUP]: true,
       [COLUMN_KEYS.TYPE]: true,
       [COLUMN_KEYS.STATUS]: true,
+      [COLUMN_KEYS.CODEX_STATUS]: true,
       [COLUMN_KEYS.RESPONSE_TIME]: true,
       [COLUMN_KEYS.BALANCE]: true,
       [COLUMN_KEYS.PRIORITY]: true,
@@ -324,8 +329,10 @@ export const useChannelsData = () => {
     enableTagMode,
     typeKey = activeTypeKey,
     statusF,
+    codexStatusF,
   ) => {
     if (statusF === undefined) statusF = statusFilter;
+    if (codexStatusF === undefined) codexStatusF = codexStatusFilter;
 
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
     if (searchKeyword !== '' || searchGroup !== '' || searchModel !== '') {
@@ -334,6 +341,7 @@ export const useChannelsData = () => {
         enableTagMode,
         typeKey,
         statusF,
+        codexStatusF,
         page,
         pageSize,
         idSort,
@@ -346,8 +354,10 @@ export const useChannelsData = () => {
     setLoading(true);
     const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
     const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
+    const codexStatusParam =
+      codexStatusF !== 'all' ? `&codex_status=${codexStatusF}` : '';
     const res = await API.get(
-      `/api/channel/?p=${page}&page_size=${pageSize}&id_sort=${idSort}&tag_mode=${enableTagMode}${typeParam}${statusParam}`,
+      `/api/channel/?p=${page}&page_size=${pageSize}&id_sort=${idSort}&tag_mode=${enableTagMode}${typeParam}${statusParam}${codexStatusParam}`,
     );
 
     if (res === undefined || reqId !== requestCounter.current) {
@@ -377,6 +387,7 @@ export const useChannelsData = () => {
     enableTagMode,
     typeKey = activeTypeKey,
     statusF = statusFilter,
+    codexStatusF = codexStatusFilter,
     page = 1,
     pageSz = pageSize,
     sortFlag = idSort,
@@ -392,14 +403,17 @@ export const useChannelsData = () => {
           enableTagMode,
           typeKey,
           statusF,
+          codexStatusF,
         );
         return;
       }
 
       const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
       const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
+      const codexStatusParam =
+        codexStatusF !== 'all' ? `&codex_status=${codexStatusF}` : '';
       const res = await API.get(
-        `/api/channel/search?keyword=${searchKeyword}&group=${searchGroup}&model=${searchModel}&id_sort=${sortFlag}&tag_mode=${enableTagMode}&p=${page}&page_size=${pageSz}${typeParam}${statusParam}`,
+        `/api/channel/search?keyword=${searchKeyword}&group=${searchGroup}&model=${searchModel}&id_sort=${sortFlag}&tag_mode=${enableTagMode}&p=${page}&page_size=${pageSz}${typeParam}${statusParam}${codexStatusParam}`,
       );
       const { success, message, data } = res.data;
       if (success) {
@@ -424,12 +438,21 @@ export const useChannelsData = () => {
   const refresh = async (page = activePage) => {
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
     if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-      await loadChannels(page, pageSize, idSort, enableTagMode);
+      await loadChannels(
+        page,
+        pageSize,
+        idSort,
+        enableTagMode,
+        activeTypeKey,
+        statusFilter,
+        codexStatusFilter,
+      );
     } else {
       await searchChannels(
         enableTagMode,
         activeTypeKey,
         statusFilter,
+        codexStatusFilter,
         page,
         pageSize,
         idSort,
@@ -521,12 +544,21 @@ export const useChannelsData = () => {
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
     setActivePage(page);
     if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-      loadChannels(page, pageSize, idSort, enableTagMode).then(() => {});
+      loadChannels(
+        page,
+        pageSize,
+        idSort,
+        enableTagMode,
+        activeTypeKey,
+        statusFilter,
+        codexStatusFilter,
+      ).then(() => {});
     } else {
       searchChannels(
         enableTagMode,
         activeTypeKey,
         statusFilter,
+        codexStatusFilter,
         page,
         pageSize,
         idSort,
@@ -540,7 +572,15 @@ export const useChannelsData = () => {
     setActivePage(1);
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
     if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-      loadChannels(1, size, idSort, enableTagMode)
+      loadChannels(
+        1,
+        size,
+        idSort,
+        enableTagMode,
+        activeTypeKey,
+        statusFilter,
+        codexStatusFilter,
+      )
         .then()
         .catch((reason) => {
           showError(reason);
@@ -550,6 +590,7 @@ export const useChannelsData = () => {
         enableTagMode,
         activeTypeKey,
         statusFilter,
+        codexStatusFilter,
         1,
         size,
         idSort,
@@ -717,6 +758,176 @@ export const useChannelsData = () => {
       showError(message);
     }
     setLoading(false);
+  };
+
+  const getSelectedChannelIds = () => {
+    return selectedChannels
+      .map((channel) => channel.id)
+      .filter((id) => typeof id === 'number');
+  };
+
+  const showBatchResultModal = (title, data = {}) => {
+    Modal.info({
+      title,
+      centered: true,
+      width: 620,
+      content: (
+        <div className='space-y-3'>
+          <div className='flex flex-wrap gap-2'>
+            {Object.entries(data.summary || {}).map(([label, value]) => (
+              <div
+                key={label}
+                className='rounded-lg border px-3 py-2 text-sm'
+              >
+                {t(label)}: {value}
+              </div>
+            ))}
+          </div>
+          {(data.failures || []).length > 0 ? (
+            <div className='max-h-72 overflow-y-auto rounded-lg border'>
+              {(data.failures || []).map((failure, index) => (
+                <div key={index} className='border-b px-3 py-2 text-xs'>
+                  <div className='font-medium'>
+                    #{failure.channel_id} {failure.channel_name || '-'}
+                  </div>
+                  <div className='mt-1 break-words text-semi-color-text-2'>
+                    {failure.message}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className='text-sm text-semi-color-text-2'>{t('无失败')}</div>
+          )}
+        </div>
+      ),
+    });
+  };
+
+  const batchTestSelectedChannels = async () => {
+    const ids = getSelectedChannelIds();
+    if (ids.length === 0) {
+      showError(t('请先选择渠道'));
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await API.post('/api/channel/batch/test', { ids });
+      const { success, message, data } = res.data;
+      if (!success) {
+        showError(message);
+        return;
+      }
+      showBatchResultModal(t('批量测活完成'), {
+        summary: {
+          已测试: data?.tested_channels || 0,
+          失败: data?.failed_channels || 0,
+          'Codex 状态已更新': data?.codex_status_updated_channels || 0,
+          'Codex 状态刷新失败': data?.codex_status_failed_channels || 0,
+          'Codex 凭证失效': data?.codex_status_invalid_channels || 0,
+        },
+        failures: data?.failures || [],
+      });
+      await refresh();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const batchRefreshCodexCredentials = async () => {
+    const ids = getSelectedChannelIds();
+    if (ids.length === 0) {
+      showError(t('请先选择渠道'));
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await API.post(
+        '/api/channel/batch/codex/refresh',
+        { ids },
+        { skipErrorHandler: true },
+      );
+      const { success, message, data } = res.data;
+      if (!success) {
+        showError(message);
+        return;
+      }
+      showBatchResultModal(t('批量刷新 Codex Token 完成'), {
+        summary: {
+          已刷新: data?.refreshed_channels || 0,
+          失败: data?.failed_channels || 0,
+          已禁用: data?.disabled_channels || 0,
+        },
+        failures: data?.failures || [],
+      });
+      await refresh();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const batchRefreshCodexUsage = async () => {
+    const ids = getSelectedChannelIds();
+    if (ids.length === 0) {
+      showError(t('请先选择渠道'));
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await API.post(
+        '/api/channel/batch/codex/usage',
+        { ids },
+        { skipErrorHandler: true },
+      );
+      const { success, message, data } = res.data;
+      if (!success) {
+        showError(message);
+        return;
+      }
+      showBatchResultModal(t('批量刷新 Codex 用量完成'), {
+        summary: {
+          已更新: data?.updated_channels || 0,
+          失败: data?.failed_channels || 0,
+          凭证失效: data?.invalid_channels || 0,
+          受限: data?.exhausted_channels || 0,
+        },
+        failures: data?.failures || [],
+      });
+      await refresh();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const batchClearCodexPoolState = async () => {
+    const ids = getSelectedChannelIds();
+    if (ids.length === 0) {
+      showError(t('请先选择渠道'));
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await API.post(
+        '/api/channel/batch/codex/clear_pool_state',
+        { ids },
+        { skipErrorHandler: true },
+      );
+      const { success, message, data } = res.data;
+      if (!success) {
+        showError(message);
+        return;
+      }
+      showBatchResultModal(t('Codex 账号池状态已清理'), {
+        summary: {
+          已更新: data?.updated_channels || 0,
+          失败: data?.failed_channels || 0,
+        },
+        failures: data?.failures || [],
+      });
+      await refresh();
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Channel operations
@@ -1146,6 +1357,7 @@ export const useChannelsData = () => {
     enableTagMode,
     enableBatchDelete,
     statusFilter,
+    codexStatusFilter,
     compactMode,
     globalPassThroughEnabled,
 
@@ -1229,6 +1441,10 @@ export const useChannelsData = () => {
     handleRow,
     batchSetChannelTag,
     batchDeleteChannels,
+    batchTestSelectedChannels,
+    batchRefreshCodexCredentials,
+    batchRefreshCodexUsage,
+    batchClearCodexPoolState,
     testAllChannels,
     deleteAllDisabledChannels,
     updateAllChannelsBalance,
@@ -1251,6 +1467,7 @@ export const useChannelsData = () => {
     setEnableTagMode,
     setEnableBatchDelete,
     setStatusFilter,
+    setCodexStatusFilter,
     setCompactMode,
     setActivePage,
   };

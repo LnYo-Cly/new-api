@@ -100,6 +100,17 @@ func tryRefreshCodexCredentialAndRelay(
 		return currentErr, false
 	}
 
+	var codexInflight *service.CodexInflightHandle
+	if service.IsCodexChannel(refreshedChannel) {
+		var ok bool
+		var reason string
+		codexInflight, ok, reason = service.AcquireCodexInflight(refreshedChannel)
+		if !ok {
+			return types.NewErrorWithStatusCode(errors.New(reason), types.ErrorCodeGetChannelFailed, http.StatusServiceUnavailable), true
+		}
+		defer codexInflight.Release()
+	}
+
 	setupErr := middleware.SetupContextForSelectedChannel(c, refreshedChannel, relayInfo.OriginModelName)
 	if setupErr != nil {
 		return setupErr, true
@@ -244,8 +255,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 	codexRefreshRetriedChannels := make(map[int]struct{})
+	service.EnableCodexPoolFailoverForRequest(c)
+	codexFailoverStart := time.Now()
+	codexFailoverAttempts := 0
+	codexLastAction := service.CodexRelayFailureAction{}
 
-	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+	for ; shouldContinueRelayLoop(c, relayInfo, retryParam, codexFailoverStart, codexFailoverAttempts); retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
@@ -267,6 +282,20 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
+		var codexInflight *service.CodexInflightHandle
+		if service.IsCodexChannel(channel) {
+			var ok bool
+			var reason string
+			codexInflight, ok, reason = service.AcquireCodexInflight(channel)
+			if !ok {
+				retryParam.ExcludeChannel(channel.Id)
+				newAPIError = types.NewErrorWithStatusCode(errors.New(reason), types.ErrorCodeGetChannelFailed, http.StatusServiceUnavailable)
+				relayInfo.LastError = newAPIError
+				continue
+			}
+			codexFailoverAttempts++
+		}
+
 		relayOnce := func() *types.NewAPIError {
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
@@ -280,8 +309,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			}
 		}
 		newAPIError = relayOnce()
+		if codexInflight != nil {
+			codexInflight.Release()
+		}
 
 		if newAPIError == nil {
+			if service.IsCodexChannel(channel) {
+				service.MarkCodexChannelAvailable(channel)
+			}
 			relayInfo.LastError = nil
 			return
 		}
@@ -294,14 +329,36 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		relayInfo.LastError = newAPIError
 
+		if service.IsCodexChannel(channel) {
+			codexLastAction = service.MarkCodexChannelRelayFailure(channel, newAPIError)
+		}
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 		retryParam.ExcludeChannel(channel.Id)
 
-		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+		if !shouldRetry(c, channel, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+			break
+		}
+		if service.IsCodexChannel(channel) && !codexLastAction.Retryable {
 			break
 		}
 		if codexRefreshedAndRetried {
 			continue
+		}
+		if service.IsCodexChannel(channel) && codexLastAction.Retryable {
+			selectedGroup := common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+			if selectedGroup == "" {
+				selectedGroup = retryParam.TokenGroup
+			}
+			if selectedGroup != "" {
+				if nextChannel, err := model.GetRandomSatisfiedChannelExcluding(
+					selectedGroup,
+					relayInfo.OriginModelName,
+					retryParam.GetRetry(),
+					retryParam.ExcludedChannelIds(),
+				); err == nil && nextChannel != nil {
+					retryParam.ResetRetryNextTry()
+				}
+			}
 		}
 	}
 
@@ -315,6 +372,29 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+func shouldContinueRelayLoop(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam, codexFailoverStart time.Time, codexAttempts int) bool {
+	if retryParam.GetRetry() <= common.RetryTimes {
+		return true
+	}
+	if _, ok := c.Get("specific_channel_id"); ok {
+		return false
+	}
+	if info == nil || info.LastError == nil {
+		return false
+	}
+	lastChannelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
+	if lastChannelType != constant.ChannelTypeCodex {
+		return false
+	}
+	if !service.ClassifyCodexRelayFailure(info.LastError).Retryable {
+		return false
+	}
+	if codexAttempts >= service.GetCodexFailoverMaxAttempts() {
+		return false
+	}
+	return time.Since(codexFailoverStart) < service.GetCodexFailoverMaxDuration()
 }
 
 var upgrader = websocket.Upgrader{
@@ -391,11 +471,12 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	return channel, nil
 }
 
-func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
+func shouldRetry(c *gin.Context, channel *model.Channel, openaiErr *types.NewAPIError, retryTimes int) bool {
 	if openaiErr == nil {
 		return false
 	}
-	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+	codexRetryable := service.IsCodexChannel(channel) && service.ClassifyCodexRelayFailure(openaiErr).Retryable
+	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) && !codexRetryable {
 		return false
 	}
 	if types.IsChannelError(openaiErr) {
@@ -404,7 +485,7 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if types.IsSkipRetryError(openaiErr) {
 		return false
 	}
-	if retryTimes <= 0 {
+	if retryTimes <= 0 && !codexRetryable {
 		return false
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {
@@ -419,6 +500,9 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	}
 	if operation_setting.IsAlwaysSkipRetryCode(openaiErr.GetErrorCode()) {
 		return false
+	}
+	if codexRetryable {
+		return true
 	}
 	return operation_setting.ShouldRetryByStatusCode(code)
 }

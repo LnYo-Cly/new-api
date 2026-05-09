@@ -107,6 +107,8 @@ func Distribute() func(c *gin.Context) {
 								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorAffinityChannelDisabled))
 								return
 							}
+						} else if skip, reason := service.ShouldSkipCodexChannelForScheduling(c, preferred); skip {
+							common.SysLog(fmt.Sprintf("skip codex affinity channel #%d for scheduling: %s", preferred.Id, reason))
 						} else if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 							autoGroups := service.GetUserAutoGroup(userGroup)

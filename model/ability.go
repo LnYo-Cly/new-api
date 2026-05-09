@@ -125,6 +125,21 @@ func GetChannelExcluding(group string, model string, retry int, excludedChannelI
 			return !isChannelExcluded(ability.ChannelId, excludedChannelIDs)
 		})
 	}
+	if ChannelScheduleFilter != nil && len(abilities) > 0 {
+		filtered := make([]Ability, 0, len(abilities))
+		for _, ability := range abilities {
+			channel := Channel{}
+			channel.Id = ability.ChannelId
+			if err := DB.First(&channel, "id = ?", channel.Id).Error; err != nil {
+				return nil, err
+			}
+			if skip, _ := ChannelScheduleFilter(&channel); skip {
+				continue
+			}
+			filtered = append(filtered, ability)
+		}
+		abilities = filtered
+	}
 	if len(abilities) == 0 {
 		return nil, nil
 	}
@@ -152,7 +167,7 @@ func GetChannelExcluding(group string, model string, retry int, excludedChannelI
 		if ability.PriorityValue() != targetPriority {
 			continue
 		}
-		sumWeight += int(ability.Weight) + 10
+		sumWeight += getAbilityScheduleWeight(ability)
 		targetChannels = append(targetChannels, ability)
 	}
 	if len(targetChannels) == 0 {
@@ -162,7 +177,7 @@ func GetChannelExcluding(group string, model string, retry int, excludedChannelI
 	weight := common.GetRandomInt(sumWeight)
 	chosenChannelID := 0
 	for _, ability := range targetChannels {
-		weight -= int(ability.Weight) + 10
+		weight -= getAbilityScheduleWeight(ability)
 		if weight <= 0 {
 			chosenChannelID = ability.ChannelId
 			break
@@ -175,6 +190,27 @@ func GetChannelExcluding(group string, model string, retry int, excludedChannelI
 	channel.Id = chosenChannelID
 	err = DB.First(&channel, "id = ?", channel.Id).Error
 	return &channel, err
+}
+
+func getAbilityScheduleWeight(ability Ability) int {
+	baseWeight := int(ability.Weight) + 10
+	if ChannelWeightMultiplier == nil {
+		return baseWeight
+	}
+	channel := Channel{}
+	channel.Id = ability.ChannelId
+	if err := DB.First(&channel, "id = ?", channel.Id).Error; err != nil {
+		return baseWeight
+	}
+	multiplier := ChannelWeightMultiplier(&channel)
+	if multiplier <= 0 {
+		return 0
+	}
+	adjusted := int(float64(baseWeight) * multiplier)
+	if adjusted <= 0 {
+		return 1
+	}
+	return adjusted
 }
 
 func (ability Ability) PriorityValue() int64 {

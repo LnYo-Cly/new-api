@@ -210,6 +210,8 @@ const EditChannelModal = (props) => {
     allow_inference_geo: false,
     allow_speed: false,
     claude_beta_query: false,
+    codex_max_inflight: 0,
+    codex_soft_inflight: 0,
     upstream_model_update_check_enabled: false,
     upstream_model_update_auto_sync_enabled: false,
     upstream_model_update_last_check_time: 0,
@@ -911,6 +913,10 @@ const EditChannelModal = (props) => {
             parsedSettings.allow_inference_geo || false;
           data.allow_speed = parsedSettings.allow_speed || false;
           data.claude_beta_query = parsedSettings.claude_beta_query || false;
+          data.codex_max_inflight =
+            Math.max(0, Number(parsedSettings.codex_max_inflight) || 0);
+          data.codex_soft_inflight =
+            Math.max(0, Number(parsedSettings.codex_soft_inflight) || 0);
           data.upstream_model_update_check_enabled =
             parsedSettings.upstream_model_update_check_enabled === true;
           data.upstream_model_update_auto_sync_enabled =
@@ -941,6 +947,8 @@ const EditChannelModal = (props) => {
           data.allow_inference_geo = false;
           data.allow_speed = false;
           data.claude_beta_query = false;
+          data.codex_max_inflight = 0;
+          data.codex_soft_inflight = 0;
           data.upstream_model_update_check_enabled = false;
           data.upstream_model_update_auto_sync_enabled = false;
           data.upstream_model_update_last_check_time = 0;
@@ -959,6 +967,8 @@ const EditChannelModal = (props) => {
         data.allow_inference_geo = false;
         data.allow_speed = false;
         data.claude_beta_query = false;
+        data.codex_max_inflight = 0;
+        data.codex_soft_inflight = 0;
         data.upstream_model_update_check_enabled = false;
         data.upstream_model_update_auto_sync_enabled = false;
         data.upstream_model_update_last_check_time = 0;
@@ -1803,6 +1813,20 @@ const EditChannelModal = (props) => {
       }
     }
 
+    if (localInputs.type === 57) {
+      settings.codex_max_inflight = Math.max(
+        0,
+        Number(localInputs.codex_max_inflight) || 0,
+      );
+      settings.codex_soft_inflight = Math.max(
+        0,
+        Number(localInputs.codex_soft_inflight) || 0,
+      );
+    } else {
+      delete settings.codex_max_inflight;
+      delete settings.codex_soft_inflight;
+    }
+
     settings.upstream_model_update_check_enabled =
       localInputs.upstream_model_update_check_enabled === true;
     settings.upstream_model_update_auto_sync_enabled =
@@ -1848,6 +1872,8 @@ const EditChannelModal = (props) => {
     delete localInputs.allow_inference_geo;
     delete localInputs.allow_speed;
     delete localInputs.claude_beta_query;
+    delete localInputs.codex_max_inflight;
+    delete localInputs.codex_soft_inflight;
     delete localInputs.upstream_model_update_check_enabled;
     delete localInputs.upstream_model_update_auto_sync_enabled;
     delete localInputs.upstream_model_update_last_check_time;
@@ -3156,6 +3182,52 @@ const EditChannelModal = (props) => {
                           />
                         )}
                       </>
+                    )}
+
+                    {inputs.type === 57 && (
+                      <div className='py-3 border-b border-gray-100'>
+                        <Text className='text-sm font-medium text-gray-500 mb-3 block'>
+                          {t('Codex 账号池设置')}
+                        </Text>
+                        <Row gutter={12}>
+                          <Col span={12}>
+                            <Form.InputNumber
+                              field='codex_max_inflight'
+                              label={t('最大并发请求数')}
+                              placeholder='0'
+                              min={0}
+                              onNumberChange={(value) =>
+                                handleInputChange(
+                                  'codex_max_inflight',
+                                  Math.max(0, Number(value) || 0),
+                                )
+                              }
+                              extraText={t(
+                                '该 Codex OAuth 账号的硬并发上限，0 表示不固定限制',
+                              )}
+                              style={{ width: '100%' }}
+                            />
+                          </Col>
+                          <Col span={12}>
+                            <Form.InputNumber
+                              field='codex_soft_inflight'
+                              label={t('软并发阈值')}
+                              placeholder='0'
+                              min={0}
+                              onNumberChange={(value) =>
+                                handleInputChange(
+                                  'codex_soft_inflight',
+                                  Math.max(0, Number(value) || 0),
+                                )
+                              }
+                              extraText={t(
+                                '当前请求数达到该值后降低调度权重，0 表示不启用软权重',
+                              )}
+                              style={{ width: '100%' }}
+                            />
+                          </Col>
+                        </Row>
+                      </div>
                     )}
 
                     {inputs.type === 18 && (

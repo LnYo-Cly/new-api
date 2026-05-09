@@ -157,8 +157,10 @@ const CODEX_STATUS_CONFIG: Record<
   { label: string; variant: StatusBadgeProps['variant'] }
 > = {
   available: { label: 'Available', variant: 'success' },
-  quota_exhausted: { label: 'Quota Exhausted', variant: 'warning' },
+  limited: { label: 'Limited', variant: 'warning' },
+  quota_exhausted: { label: 'Limited', variant: 'warning' },
   credential_invalid: { label: 'Credential Invalid', variant: 'danger' },
+  temp_unavailable: { label: 'Temporarily Unavailable', variant: 'warning' },
   query_failed: { label: 'Query Failed', variant: 'neutral' },
   not_checked: { label: 'Not Checked', variant: 'neutral' },
   unknown: { label: 'Unknown', variant: 'neutral' },
@@ -186,6 +188,7 @@ export function getCodexAccountStatusValue(
 ): CodexAccountStatus {
   const status = parseCodexAccountStatus(channel)?.status
   if (!status) return 'not_checked'
+  if (status === 'quota_exhausted') return 'limited'
   if (status in CODEX_STATUS_CONFIG) return status
   return 'unknown'
 }

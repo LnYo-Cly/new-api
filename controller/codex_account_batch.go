@@ -32,6 +32,12 @@ type BatchCodexUsageResult struct {
 	Failures          []BatchCodexUsageFailure `json:"failures,omitempty"`
 }
 
+type BatchCodexPoolResetResult struct {
+	UpdatedChannels int                      `json:"updated_channels"`
+	FailedChannels  int                      `json:"failed_channels"`
+	Failures        []BatchCodexUsageFailure `json:"failures,omitempty"`
+}
+
 type BatchChannelTestFailure struct {
 	ChannelID   int    `json:"channel_id"`
 	ChannelName string `json:"channel_name"`
@@ -40,13 +46,12 @@ type BatchChannelTestFailure struct {
 }
 
 type BatchChannelTestResult struct {
-	TestedChannels int                       `json:"tested_channels"`
-	FailedChannels int                       `json:"failed_channels"`
-	Failures       []BatchChannelTestFailure `json:"failures,omitempty"`
-
-	codexStatusUpdatedChannels int
-	codexStatusFailedChannels  int
-	codexStatusInvalidChannels int
+	TestedChannels             int                       `json:"tested_channels"`
+	FailedChannels             int                       `json:"failed_channels"`
+	CodexStatusUpdatedChannels int                       `json:"codex_status_updated_channels"`
+	CodexStatusFailedChannels  int                       `json:"codex_status_failed_channels"`
+	CodexStatusInvalidChannels int                       `json:"codex_status_invalid_channels"`
+	Failures                   []BatchChannelTestFailure `json:"failures,omitempty"`
 }
 
 func BatchRefreshCodexChannelUsage(c *gin.Context) {
@@ -78,6 +83,83 @@ func BatchRefreshCodexChannelUsage(c *gin.Context) {
 		service.ResetProxyClientCache()
 	}
 
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    result,
+	})
+}
+
+func BatchClearCodexChannelPoolState(c *gin.Context) {
+	channelBatch := ChannelBatch{}
+	if err := c.ShouldBindJSON(&channelBatch); err != nil || len(channelBatch.Ids) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "参数错误",
+		})
+		return
+	}
+
+	channels, err := model.GetChannelsByIds(channelBatch.Ids)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(channels) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "未找到渠道",
+		})
+		return
+	}
+
+	result := BatchCodexPoolResetResult{}
+	for _, ch := range channels {
+		if ch == nil {
+			continue
+		}
+		if ch.Type != constant.ChannelTypeCodex {
+			result.FailedChannels++
+			result.Failures = append(result.Failures, BatchCodexUsageFailure{
+				ChannelID:   ch.Id,
+				ChannelName: ch.Name,
+				Message:     "channel type is not Codex",
+			})
+			continue
+		}
+		service.ClearCodexChannelPoolState(ch.Id)
+		summary, ok := service.ReadCodexAccountStatusFromOtherInfo(ch.OtherInfo)
+		if !ok {
+			summary = service.NewCodexAccountNotCheckedSummary("codex pool state cleared")
+		}
+		if summary.Status == service.CodexAccountStatusLimited ||
+			summary.Status == service.CodexAccountStatusTempUnavailable ||
+			summary.Status == service.CodexAccountStatusQuotaExhausted {
+			summary.Status = service.CodexAccountStatusNotChecked
+			summary.Message = "codex pool state cleared; usage not checked yet"
+		}
+		summary.CooldownUntil = 0
+		summary.CheckedAt = common.GetTimestamp()
+		otherInfo := service.MergeCodexAccountStatusIntoOtherInfo(ch.OtherInfo, summary)
+		if otherInfo != ch.OtherInfo {
+			if err := model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Update("other_info", otherInfo).Error; err != nil {
+				result.FailedChannels++
+				result.Failures = append(result.Failures, BatchCodexUsageFailure{
+					ChannelID:   ch.Id,
+					ChannelName: ch.Name,
+					Message:     err.Error(),
+				})
+				continue
+			}
+			ch.OtherInfo = otherInfo
+			model.CacheUpdateChannel(ch)
+		}
+		result.UpdatedChannels++
+	}
+	if result.UpdatedChannels > 0 {
+		model.InitChannelCache()
+		service.ResetProxyClientCache()
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -183,6 +265,12 @@ func refreshSingleCodexChannelUsage(ctx context.Context, ch *model.Channel) Batc
 			}
 			ch.OtherInfo = otherInfo
 		}
+		if summary.CooldownUntil > common.GetTimestamp() {
+			service.SetCodexChannelCooldown(ch.Id, summary.CooldownUntil)
+		} else if summary.Status == service.CodexAccountStatusAvailable ||
+			summary.Status == service.CodexAccountStatusNotChecked {
+			service.ClearCodexChannelCooldown(ch.Id)
+		}
 	}
 
 	if ch.Type != constant.ChannelTypeCodex {
@@ -279,7 +367,7 @@ func refreshSingleCodexChannelUsage(ctx context.Context, ch *model.Channel) Batc
 	switch summary.Status {
 	case service.CodexAccountStatusAvailable:
 		result.UpdatedChannels = 1
-	case service.CodexAccountStatusQuotaExhausted:
+	case service.CodexAccountStatusQuotaExhausted, service.CodexAccountStatusLimited:
 		result.UpdatedChannels = 1
 		result.ExhaustedChannels = 1
 	case service.CodexAccountStatusCredentialInvalid:
@@ -314,9 +402,9 @@ func refreshCodexStatusAfterChannelTest(ctx context.Context, ch *model.Channel) 
 }
 
 func (result BatchChannelTestResult) hasCodexStatusSideEffects() bool {
-	return result.codexStatusUpdatedChannels > 0 ||
-		result.codexStatusFailedChannels > 0 ||
-		result.codexStatusInvalidChannels > 0
+	return result.CodexStatusUpdatedChannels > 0 ||
+		result.CodexStatusFailedChannels > 0 ||
+		result.CodexStatusInvalidChannels > 0
 }
 
 func testBatchChannels(ctx context.Context, channels []*model.Channel) BatchChannelTestResult {
@@ -363,9 +451,9 @@ func testBatchChannels(ctx context.Context, channels []*model.Channel) BatchChan
 		result.TestedChannels += item.TestedChannels
 		result.FailedChannels += item.FailedChannels
 		result.Failures = append(result.Failures, item.Failures...)
-		result.codexStatusUpdatedChannels += item.codexStatusUpdatedChannels
-		result.codexStatusFailedChannels += item.codexStatusFailedChannels
-		result.codexStatusInvalidChannels += item.codexStatusInvalidChannels
+		result.CodexStatusUpdatedChannels += item.CodexStatusUpdatedChannels
+		result.CodexStatusFailedChannels += item.CodexStatusFailedChannels
+		result.CodexStatusInvalidChannels += item.CodexStatusInvalidChannels
 	}
 	return result
 }
@@ -380,9 +468,9 @@ func testSingleBatchChannel(ctx context.Context, ch *model.Channel) BatchChannel
 	milliseconds := time.Since(tik).Milliseconds()
 	ch.UpdateResponseTime(milliseconds)
 	codexStatusResult := refreshCodexStatusAfterChannelTest(ctx, ch)
-	result.codexStatusUpdatedChannels = codexStatusResult.UpdatedChannels
-	result.codexStatusFailedChannels = codexStatusResult.FailedChannels
-	result.codexStatusInvalidChannels = codexStatusResult.InvalidChannels
+	result.CodexStatusUpdatedChannels = codexStatusResult.UpdatedChannels
+	result.CodexStatusFailedChannels = codexStatusResult.FailedChannels
+	result.CodexStatusInvalidChannels = codexStatusResult.InvalidChannels
 
 	if testRes.localErr != nil {
 		failure := BatchChannelTestFailure{

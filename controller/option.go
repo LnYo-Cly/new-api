@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -203,6 +204,33 @@ func UpdateOption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无效的主题值，可选值：default（新版前端）、classic（经典前端）",
+			})
+			return
+		}
+	case "CodexFailoverMaxAttempts":
+		value, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || value < 0 || value > 10000 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "Codex 最大换号次数必须在 0-10000 之间，0 表示自动",
+			})
+			return
+		}
+	case "CodexFailoverMaxDurationSeconds":
+		value, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || value < 1 || value > 300 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "Codex 换号总耗时上限必须在 1-300 秒之间",
+			})
+			return
+		}
+	case "CodexTempUnavailableCooldownSeconds":
+		value, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || value < 0 || value > 3600 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "Codex 临时不可用冷却必须在 0-3600 秒之间",
 			})
 			return
 		}

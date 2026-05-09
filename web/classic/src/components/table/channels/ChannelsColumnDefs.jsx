@@ -217,6 +217,108 @@ const renderMultiKeyStatus = (status, keySize, enabledKeySize, t) => {
   }
 };
 
+const parseCodexAccountStatus = (record) => {
+  if (!record || record.children !== undefined || record.type !== 57) {
+    return null;
+  }
+  if (!record.other_info) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(record.other_info);
+    return parsed?.codex_account && typeof parsed.codex_account === 'object'
+      ? parsed.codex_account
+      : null;
+  } catch (error) {
+    return null;
+  }
+};
+
+const getCodexAccountStatusConfig = (status, t) => {
+  const normalized = status === 'quota_exhausted' ? 'limited' : status;
+  switch (normalized) {
+    case 'available':
+      return { label: t('正常'), color: 'green' };
+    case 'limited':
+      return { label: t('受限'), color: 'yellow' };
+    case 'credential_invalid':
+      return { label: t('凭证失效'), color: 'red' };
+    case 'temp_unavailable':
+      return { label: t('临时不可用'), color: 'orange' };
+    case 'query_failed':
+      return { label: t('查询失败'), color: 'grey' };
+    case 'not_checked':
+      return { label: t('未查询'), color: 'grey' };
+    default:
+      return { label: t('未知状态'), color: 'grey' };
+  }
+};
+
+const formatCodexUsageWindow = (summary) => {
+  const parts = [];
+  if (typeof summary?.five_hour_window?.used_percent === 'number') {
+    parts.push(`5h ${summary.five_hour_window.used_percent}%`);
+  }
+  if (typeof summary?.weekly_window?.used_percent === 'number') {
+    parts.push(`7d ${summary.weekly_window.used_percent}%`);
+  }
+  return parts.join(' · ');
+};
+
+const renderCodexAccountStatus = (record, t) => {
+  if (record.children !== undefined || record.type !== 57) {
+    return <span className='text-semi-color-text-2'>-</span>;
+  }
+  const summary = parseCodexAccountStatus(record);
+  const status = summary?.status || 'not_checked';
+  const config = getCodexAccountStatusConfig(status, t);
+  const usage = formatCodexUsageWindow(summary);
+  const checkedAt = summary?.checked_at ? timestamp2string(summary.checked_at) : '-';
+  const cooldownUntil = summary?.cooldown_until
+    ? timestamp2string(summary.cooldown_until)
+    : '-';
+
+  return (
+    <Tooltip
+      content={
+        <div className='max-w-sm text-xs'>
+          <div>
+            {t('状态')}：{config.label}
+          </div>
+          <div>
+            {t('用量')}：{usage || '-'}
+          </div>
+          <div>
+            {t('上游状态码')}：{summary?.upstream_status || '-'}
+          </div>
+          <div>
+            {t('检查时间')}：{checkedAt}
+          </div>
+          <div>
+            {t('冷却至')}：{cooldownUntil}
+          </div>
+          {summary?.message ? (
+            <div className='mt-1 break-words text-semi-color-text-2'>
+              {summary.message}
+            </div>
+          ) : null}
+        </div>
+      }
+    >
+      <Space spacing={4}>
+        <Tag color={config.color} shape='circle'>
+          {config.label}
+        </Tag>
+        {usage ? (
+          <Typography.Text type='tertiary' size='small'>
+            {usage}
+          </Typography.Text>
+        ) : null}
+      </Space>
+    </Tooltip>
+  );
+};
+
 const renderResponseTime = (responseTime, t) => {
   let time = responseTime / 1000;
   time = time.toFixed(2) + t(' 秒');
@@ -515,6 +617,12 @@ export const getChannelsColumns = ({
           return renderStatus(text, record.channel_info, t);
         }
       },
+    },
+    {
+      key: COLUMN_KEYS.CODEX_STATUS,
+      title: t('Codex状态'),
+      dataIndex: 'codex_status',
+      render: (text, record) => renderCodexAccountStatus(record, t),
     },
     {
       key: COLUMN_KEYS.RESPONSE_TIME,

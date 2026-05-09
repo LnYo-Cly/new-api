@@ -44,14 +44,19 @@ func GetCodexChannelUsage(c *gin.Context) {
 	}
 	persistSummary := func(summary service.CodexAccountStatusSummary) {
 		otherInfo := service.MergeCodexAccountStatusIntoOtherInfo(ch.OtherInfo, summary)
-		if otherInfo == ch.OtherInfo {
-			return
+		if otherInfo != ch.OtherInfo {
+			if err := model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Update("other_info", otherInfo).Error; err != nil {
+				common.SysError("failed to update codex account status: " + err.Error())
+				return
+			}
+			ch.OtherInfo = otherInfo
 		}
-		if err := model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Update("other_info", otherInfo).Error; err != nil {
-			common.SysError("failed to update codex account status: " + err.Error())
-			return
+		if summary.CooldownUntil > common.GetTimestamp() {
+			service.SetCodexChannelCooldown(ch.Id, summary.CooldownUntil)
+		} else if summary.Status == service.CodexAccountStatusAvailable ||
+			summary.Status == service.CodexAccountStatusNotChecked {
+			service.ClearCodexChannelCooldown(ch.Id)
 		}
-		ch.OtherInfo = otherInfo
 	}
 
 	oauthKey, err := codex.ParseOAuthKey(strings.TrimSpace(ch.Key))

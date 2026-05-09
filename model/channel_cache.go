@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"sort"
 	"strings"
@@ -17,6 +18,9 @@ import (
 var group2model2channels map[string]map[string][]int // enabled channel
 var channelsIDM map[int]*Channel                     // all channels include disabled
 var channelSyncLock sync.RWMutex
+
+var ChannelScheduleFilter func(channel *Channel) (skip bool, reason string)
+var ChannelWeightMultiplier func(channel *Channel) float64
 
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
@@ -124,6 +128,9 @@ func GetRandomSatisfiedChannelExcluding(group string, model string, retry int, e
 			return nil, nil
 		}
 		if channel, ok := channelsIDM[channels[0]]; ok {
+			if isChannelScheduleFiltered(channel) {
+				return nil, nil
+			}
 			return channel, nil
 		}
 		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
@@ -135,6 +142,9 @@ func GetRandomSatisfiedChannelExcluding(group string, model string, retry int, e
 			continue
 		}
 		if channel, ok := channelsIDM[channelId]; ok {
+			if isChannelScheduleFiltered(channel) {
+				continue
+			}
 			uniquePriorities[int(channel.GetPriority())] = true
 		} else {
 			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
@@ -145,9 +155,12 @@ func GetRandomSatisfiedChannelExcluding(group string, model string, retry int, e
 		sortedUniquePriorities = append(sortedUniquePriorities, priority)
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
+	if len(sortedUniquePriorities) == 0 {
+		return nil, nil
+	}
 
-	if retry >= len(uniquePriorities) {
-		retry = len(uniquePriorities) - 1
+	if retry >= len(sortedUniquePriorities) {
+		retry = len(sortedUniquePriorities) - 1
 	}
 	targetPriority := int64(sortedUniquePriorities[retry])
 
@@ -159,8 +172,11 @@ func GetRandomSatisfiedChannelExcluding(group string, model string, retry int, e
 			continue
 		}
 		if channel, ok := channelsIDM[channelId]; ok {
+			if isChannelScheduleFiltered(channel) {
+				continue
+			}
 			if channel.GetPriority() == targetPriority {
-				sumWeight += channel.GetWeight()
+				sumWeight += getChannelScheduleWeight(channel)
 				targetChannels = append(targetChannels, channel)
 			}
 		} else {
@@ -194,13 +210,37 @@ func GetRandomSatisfiedChannelExcluding(group string, model string, retry int, e
 
 	// Find a channel based on its weight
 	for _, channel := range targetChannels {
-		randomWeight -= channel.GetWeight()*smoothingFactor + smoothingAdjustment
+		randomWeight -= getChannelScheduleWeight(channel)*smoothingFactor + smoothingAdjustment
 		if randomWeight < 0 {
 			return channel, nil
 		}
 	}
 	// return null if no channel is not found
 	return nil, errors.New("channel not found")
+}
+
+func isChannelScheduleFiltered(channel *Channel) bool {
+	if channel == nil || ChannelScheduleFilter == nil {
+		return false
+	}
+	skip, _ := ChannelScheduleFilter(channel)
+	return skip
+}
+
+func getChannelScheduleWeight(channel *Channel) int {
+	weight := channel.GetWeight()
+	if channel == nil || ChannelWeightMultiplier == nil {
+		return weight
+	}
+	multiplier := ChannelWeightMultiplier(channel)
+	if multiplier <= 0 {
+		return 0
+	}
+	adjusted := int(math.Round(float64(weight) * multiplier))
+	if weight > 0 && adjusted <= 0 {
+		return 1
+	}
+	return adjusted
 }
 
 func isChannelExcluded(channelID int, excludedChannelIDs map[int]struct{}) bool {

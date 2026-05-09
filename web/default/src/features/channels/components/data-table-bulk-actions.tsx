@@ -9,6 +9,7 @@ import {
   Loader2,
   Power,
   PowerOff,
+  RotateCcw,
   Tag,
   Trash2,
 } from 'lucide-react'
@@ -32,7 +33,11 @@ import {
 } from '@/components/ui/tooltip'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
-import { batchRefreshCodexUsage, batchTestChannels } from '../api'
+import {
+  batchClearCodexPoolState,
+  batchRefreshCodexUsage,
+  batchTestChannels,
+} from '../api'
 import { CHANNEL_TYPE_CODEX } from '../constants'
 import {
   handleBatchDelete,
@@ -156,7 +161,7 @@ export function DataTableBulkActions<TData>(
     null
   )
   const [batchLoading, setBatchLoading] = useState<
-    'test' | 'codex_usage' | null
+    'test' | 'codex_usage' | 'codex_pool_clear' | null
   >(null)
   const [tagValue, setTagValue] = useState('')
 
@@ -242,6 +247,30 @@ export function DataTableBulkActions<TData>(
             value: response.data.failed_channels,
             variant: response.data.failed_channels > 0 ? 'danger' : 'neutral',
           },
+          {
+            label: 'Codex status updated',
+            value: response.data.codex_status_updated_channels ?? 0,
+            variant:
+              (response.data.codex_status_updated_channels ?? 0) > 0
+                ? 'success'
+                : 'neutral',
+          },
+          {
+            label: 'Codex status failed',
+            value: response.data.codex_status_failed_channels ?? 0,
+            variant:
+              (response.data.codex_status_failed_channels ?? 0) > 0
+                ? 'warning'
+                : 'neutral',
+          },
+          {
+            label: 'Codex credential invalid',
+            value: response.data.codex_status_invalid_channels ?? 0,
+            variant:
+              (response.data.codex_status_invalid_channels ?? 0) > 0
+                ? 'danger'
+                : 'neutral',
+          },
         ],
         failures: response.data.failures ?? [],
       })
@@ -326,6 +355,54 @@ export function DataTableBulkActions<TData>(
     }
   }
 
+  const handleClearCodexPoolState = async () => {
+    if (selectedIds.length === 0 || batchLoading) return
+    setBatchLoading('codex_pool_clear')
+    try {
+      const response = await batchClearCodexPoolState({ ids: selectedIds })
+      if (!response.success || !response.data) {
+        throw new Error(response.message || t('Clear Codex pool state failed'))
+      }
+      showResult({
+        title: t(
+          'Codex pool state cleared: {{updated}} updated, {{failed}} failed',
+          {
+            updated: response.data.updated_channels,
+            failed: response.data.failed_channels,
+          }
+        ),
+        summary: [
+          {
+            label: 'Updated',
+            value: response.data.updated_channels,
+            variant: 'success',
+          },
+          {
+            label: 'Failed',
+            value: response.data.failed_channels,
+            variant: response.data.failed_channels > 0 ? 'danger' : 'neutral',
+          },
+        ],
+        failures: response.data.failures ?? [],
+      })
+      queryClient.invalidateQueries({ queryKey: ['channels', 'list'] })
+      handleClearSelection()
+    } catch (error) {
+      showResult({
+        title:
+          error instanceof Error
+            ? error.message
+            : t('Clear Codex pool state failed'),
+        summary: [
+          { label: 'Failed', value: selectedIds.length, variant: 'danger' },
+        ],
+        failures: [],
+      })
+    } finally {
+      setBatchLoading(null)
+    }
+  }
+
   return (
     <>
       <BulkActionsToolbar table={props.table} entityName='channel'>
@@ -354,6 +431,34 @@ export function DataTableBulkActions<TData>(
           </TooltipTrigger>
           <TooltipContent>
             <p>{t('Run tests for selected channels')}</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='outline'
+                size='icon'
+                onClick={handleClearCodexPoolState}
+                disabled={codexSelectedCount === 0 || Boolean(batchLoading)}
+                className='size-8'
+                aria-label={t('Clear selected Codex pool state')}
+                title={t('Clear selected Codex pool state')}
+              />
+            }
+          >
+            {batchLoading === 'codex_pool_clear' ? (
+              <Loader2 className='animate-spin' />
+            ) : (
+              <RotateCcw />
+            )}
+            <span className='sr-only'>
+              {t('Clear selected Codex pool state')}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{t('Clear selected Codex pool state')}</p>
           </TooltipContent>
         </Tooltip>
 

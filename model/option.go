@@ -157,6 +157,9 @@ func InitOptionMap() {
 	//common.OptionMap["ChatLink2"] = common.ChatLink2
 	common.OptionMap["QuotaPerUnit"] = strconv.FormatFloat(common.QuotaPerUnit, 'f', -1, 64)
 	common.OptionMap["RetryTimes"] = strconv.Itoa(common.RetryTimes)
+	common.OptionMap["CodexFailoverMaxAttempts"] = strconv.Itoa(common.CodexFailoverMaxAttempts)
+	common.OptionMap["CodexFailoverMaxDurationSeconds"] = strconv.Itoa(common.CodexFailoverMaxDurationSeconds)
+	common.OptionMap["CodexTempUnavailableCooldownSeconds"] = strconv.Itoa(common.CodexTempUnavailableCooldownSeconds)
 	common.OptionMap["DataExportInterval"] = strconv.Itoa(common.DataExportInterval)
 	common.OptionMap["DataExportDefaultTime"] = common.DataExportDefaultTime
 	common.OptionMap["DefaultCollapseSidebar"] = strconv.FormatBool(common.DefaultCollapseSidebar)
@@ -495,6 +498,27 @@ func updateOptionMap(key string, value string) (err error) {
 		err = setting.UpdateModelRequestRateLimitGroupByJSONString(value)
 	case "RetryTimes":
 		common.RetryTimes, _ = strconv.Atoi(value)
+	case "CodexFailoverMaxAttempts":
+		common.CodexFailoverMaxAttempts, _ = strconv.Atoi(value)
+		if common.CodexFailoverMaxAttempts < 0 {
+			common.CodexFailoverMaxAttempts = 0
+		}
+	case "CodexFailoverMaxDurationSeconds":
+		common.CodexFailoverMaxDurationSeconds, _ = strconv.Atoi(value)
+		if common.CodexFailoverMaxDurationSeconds < 1 {
+			common.CodexFailoverMaxDurationSeconds = 1
+		}
+		if common.CodexFailoverMaxDurationSeconds > 300 {
+			common.CodexFailoverMaxDurationSeconds = 300
+		}
+	case "CodexTempUnavailableCooldownSeconds":
+		common.CodexTempUnavailableCooldownSeconds, _ = strconv.Atoi(value)
+		if common.CodexTempUnavailableCooldownSeconds < 0 {
+			common.CodexTempUnavailableCooldownSeconds = 0
+		}
+		if common.CodexTempUnavailableCooldownSeconds > 3600 {
+			common.CodexTempUnavailableCooldownSeconds = 3600
+		}
 	case "DataExportInterval":
 		common.DataExportInterval, _ = strconv.Atoi(value)
 	case "DataExportDefaultTime":

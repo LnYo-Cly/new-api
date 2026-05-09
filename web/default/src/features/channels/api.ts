@@ -4,6 +4,7 @@ import { getGroups as getUserGroups } from '@/features/users/api'
 import type {
   AddChannelRequest,
   BatchChannelTestResponse,
+  BatchCodexPoolResetResponse,
   BatchCodexUsageResponse,
   BatchDeleteParams,
   BatchRefreshCodexCredentialsResponse,
@@ -188,6 +189,21 @@ export async function batchRefreshCodexUsage(data: {
 }): Promise<BatchCodexUsageResponse> {
   const config: ExtendedApiConfig = { skipBusinessError: true }
   const res = await api.post('/api/channel/batch/codex/usage', data, config)
+  return res.data
+}
+
+/**
+ * Clear temporary Codex account pool state for selected channels
+ */
+export async function batchClearCodexPoolState(data: {
+  ids: number[]
+}): Promise<BatchCodexPoolResetResponse> {
+  const config: ExtendedApiConfig = { skipBusinessError: true }
+  const res = await api.post(
+    '/api/channel/batch/codex/clear_pool_state',
+    data,
+    config
+  )
   return res.data
 }
 

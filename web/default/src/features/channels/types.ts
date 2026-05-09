@@ -91,8 +91,10 @@ export interface ChannelOtherSettings {
 
 export type CodexAccountStatus =
   | 'available'
+  | 'limited'
   | 'quota_exhausted'
   | 'credential_invalid'
+  | 'temp_unavailable'
   | 'query_failed'
   | 'not_checked'
   | 'unknown'
@@ -110,6 +112,7 @@ export interface CodexAccountStatusSummary {
   message?: string
   upstream_status?: number
   checked_at?: number
+  cooldown_until?: number
   plan_type?: string
   email?: string
   account_id?: string
@@ -363,11 +366,28 @@ export interface BatchChannelTestResponse {
   data?: {
     tested_channels: number
     failed_channels: number
+    codex_status_updated_channels?: number
+    codex_status_failed_channels?: number
+    codex_status_invalid_channels?: number
     failures?: Array<{
       channel_id: number
       channel_name: string
       message: string
       error_code?: string
+    }>
+  }
+}
+
+export interface BatchCodexPoolResetResponse {
+  success: boolean
+  message?: string
+  data?: {
+    updated_channels: number
+    failed_channels: number
+    failures?: Array<{
+      channel_id: number
+      channel_name: string
+      message: string
     }>
   }
 }

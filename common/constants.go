@@ -130,6 +130,9 @@ var QuotaRemindThreshold = 1000
 var PreConsumedQuota = 500
 
 var RetryTimes = 0
+var CodexFailoverMaxAttempts = 0          // 0 means auto within duration/candidates
+var CodexFailoverMaxDurationSeconds = 180 // unit: second
+var CodexTempUnavailableCooldownSeconds = 60
 
 //var RootUserEmail = ""
 

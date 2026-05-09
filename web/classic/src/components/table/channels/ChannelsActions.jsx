@@ -31,6 +31,10 @@ import CompactModeToggle from '../../common/ui/CompactModeToggle';
 const ChannelsActions = ({
   enableBatchDelete,
   batchDeleteChannels,
+  batchTestSelectedChannels,
+  batchRefreshCodexCredentials,
+  batchRefreshCodexUsage,
+  batchClearCodexPoolState,
   setShowBatchSetTag,
   testAllChannels,
   fixChannelsAbilities,
@@ -49,6 +53,8 @@ const ChannelsActions = ({
   setEnableTagMode,
   statusFilter,
   setStatusFilter,
+  codexStatusFilter,
+  setCodexStatusFilter,
   getFormValues,
   loadChannels,
   searchChannels,
@@ -95,6 +101,50 @@ const ChannelsActions = ({
             trigger='click'
             render={
               <Dropdown.Menu>
+                <Dropdown.Item>
+                  <Button
+                    size='small'
+                    type='tertiary'
+                    className='w-full'
+                    disabled={!enableBatchDelete}
+                    onClick={() => batchTestSelectedChannels()}
+                  >
+                    {t('批量测活所选渠道')}
+                  </Button>
+                </Dropdown.Item>
+                <Dropdown.Item>
+                  <Button
+                    size='small'
+                    type='tertiary'
+                    className='w-full'
+                    disabled={!enableBatchDelete}
+                    onClick={() => batchRefreshCodexCredentials()}
+                  >
+                    {t('批量刷新 Codex Token')}
+                  </Button>
+                </Dropdown.Item>
+                <Dropdown.Item>
+                  <Button
+                    size='small'
+                    type='tertiary'
+                    className='w-full'
+                    disabled={!enableBatchDelete}
+                    onClick={() => batchRefreshCodexUsage()}
+                  >
+                    {t('批量刷新 Codex 用量')}
+                  </Button>
+                </Dropdown.Item>
+                <Dropdown.Item>
+                  <Button
+                    size='small'
+                    type='tertiary'
+                    className='w-full'
+                    disabled={!enableBatchDelete}
+                    onClick={() => batchClearCodexPoolState()}
+                  >
+                    {t('清理 Codex 账号池状态')}
+                  </Button>
+                </Dropdown.Item>
                 <Dropdown.Item>
                   <Button
                     size='small'
@@ -249,12 +299,21 @@ const ChannelsActions = ({
                   searchGroup === '' &&
                   searchModel === ''
                 ) {
-                  loadChannels(activePage, pageSize, v, enableTagMode);
+                  loadChannels(
+                    activePage,
+                    pageSize,
+                    v,
+                    enableTagMode,
+                    activeTypeKey,
+                    statusFilter,
+                    codexStatusFilter,
+                  );
                 } else {
                   searchChannels(
                     enableTagMode,
                     activeTypeKey,
                     statusFilter,
+                    codexStatusFilter,
                     activePage,
                     pageSize,
                     v,
@@ -289,7 +348,15 @@ const ChannelsActions = ({
                 localStorage.setItem('enable-tag-mode', v + '');
                 setEnableTagMode(v);
                 setActivePage(1);
-                loadChannels(1, pageSize, idSort, v);
+                loadChannels(
+                  1,
+                  pageSize,
+                  idSort,
+                  v,
+                  activeTypeKey,
+                  statusFilter,
+                  codexStatusFilter,
+                );
               }}
             />
           </div>
@@ -312,12 +379,51 @@ const ChannelsActions = ({
                   enableTagMode,
                   activeTypeKey,
                   v,
+                  codexStatusFilter,
                 );
               }}
             >
               <Select.Option value='all'>{t('全部')}</Select.Option>
               <Select.Option value='enabled'>{t('已启用')}</Select.Option>
               <Select.Option value='disabled'>{t('已禁用')}</Select.Option>
+            </Select>
+          </div>
+
+          <div className='flex items-center justify-between w-full md:w-auto'>
+            <Typography.Text strong className='mr-2'>
+              {t('Codex状态')}
+            </Typography.Text>
+            <Select
+              size='small'
+              value={codexStatusFilter}
+              onChange={(v) => {
+                localStorage.setItem('channel-codex-status-filter', v);
+                setCodexStatusFilter(v);
+                setActivePage(1);
+                loadChannels(
+                  1,
+                  pageSize,
+                  idSort,
+                  enableTagMode,
+                  activeTypeKey,
+                  statusFilter,
+                  v,
+                );
+              }}
+            >
+              <Select.Option value='all'>{t('全部')}</Select.Option>
+              <Select.Option value='available'>{t('正常')}</Select.Option>
+              <Select.Option value='limited'>{t('受限')}</Select.Option>
+              <Select.Option value='credential_invalid'>
+                {t('凭证失效')}
+              </Select.Option>
+              <Select.Option value='temp_unavailable'>
+                {t('临时不可用')}
+              </Select.Option>
+              <Select.Option value='query_failed'>
+                {t('查询失败')}
+              </Select.Option>
+              <Select.Option value='not_checked'>{t('未查询')}</Select.Option>
             </Select>
           </div>
         </div>
