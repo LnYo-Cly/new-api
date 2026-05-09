@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -320,6 +321,11 @@ type AdminCreateUserSubscriptionRequest struct {
 	PlanId int `json:"plan_id"`
 }
 
+type AdminAdjustUserSubscriptionTimeRequest struct {
+	DeltaDays *int   `json:"delta_days"`
+	EndTime   *int64 `json:"end_time"`
+}
+
 // AdminCreateUserSubscription creates a new user subscription from a plan (no payment).
 func AdminCreateUserSubscription(c *gin.Context) {
 	userId, _ := strconv.Atoi(c.Param("id"))
@@ -361,6 +367,45 @@ func AdminInvalidateUserSubscription(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, nil)
+}
+
+// AdminAdjustUserSubscriptionTime adjusts a user subscription expiry time.
+func AdminAdjustUserSubscriptionTime(c *gin.Context) {
+	subId, _ := strconv.Atoi(c.Param("id"))
+	if subId <= 0 {
+		common.ApiErrorMsg(c, "无效的订阅ID")
+		return
+	}
+	var req AdminAdjustUserSubscriptionTimeRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	result, msg, err := model.AdminAdjustUserSubscriptionTime(subId, req.DeltaDays, req.EndTime)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if result != nil && result.Subscription != nil {
+		adminInfo := map[string]interface{}{
+			"admin_id":        c.GetInt("id"),
+			"admin_username":  c.GetString("username"),
+			"subscription_id": subId,
+			"old_end_time":    result.OldEndTime,
+			"new_end_time":    result.NewEndTime,
+		}
+		model.RecordLogWithAdminInfo(result.Subscription.UserId, model.LogTypeManage,
+			fmt.Sprintf("管理员调整订阅 #%d 到期时间从 %d 到 %d", subId, result.OldEndTime, result.NewEndTime), adminInfo)
+	}
+	if msg != "" {
+		resp := gin.H{"message": msg}
+		if result != nil {
+			resp["subscription"] = result.Subscription
+		}
+		common.ApiSuccess(c, resp)
+		return
+	}
+	common.ApiSuccess(c, result)
 }
 
 // AdminDeleteUserSubscription hard-deletes a user subscription.

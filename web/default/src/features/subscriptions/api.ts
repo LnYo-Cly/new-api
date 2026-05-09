@@ -5,6 +5,7 @@ import type {
   PlanPayload,
   UserSubscriptionRecord,
   CreateUserSubscriptionRequest,
+  AdjustUserSubscriptionTimeRequest,
   SubscriptionPayResponse,
   SubscriptionPayRequest,
   SelfSubscriptionData,
@@ -73,6 +74,17 @@ export async function invalidateUserSubscription(
 ): Promise<ApiResponse<{ message?: string }>> {
   const res = await api.post(
     `/api/subscription/admin/user_subscriptions/${subId}/invalidate`
+  )
+  return res.data
+}
+
+export async function adjustUserSubscriptionTime(
+  subId: number,
+  data: AdjustUserSubscriptionTimeRequest
+): Promise<ApiResponse<{ message?: string; subscription?: UserSubscriptionRecord['subscription'] }>> {
+  const res = await api.patch(
+    `/api/subscription/admin/user_subscriptions/${subId}/time`,
+    data
   )
   return res.data
 }

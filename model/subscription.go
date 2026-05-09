@@ -271,6 +271,12 @@ type SubscriptionSummary struct {
 	Subscription *UserSubscription `json:"subscription"`
 }
 
+type AdminAdjustUserSubscriptionTimeResult struct {
+	Subscription *UserSubscription `json:"subscription"`
+	OldEndTime   int64             `json:"old_end_time"`
+	NewEndTime   int64             `json:"new_end_time"`
+}
+
 func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
 	if plan == nil {
 		return 0, errors.New("plan is nil")
@@ -768,6 +774,155 @@ func AdminInvalidateUserSubscription(userSubscriptionId int) (string, error) {
 		return fmt.Sprintf("用户分组将回退到 %s", downgradeGroup), nil
 	}
 	return "", nil
+}
+
+func activateUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription) (string, error) {
+	if tx == nil || sub == nil {
+		return "", errors.New("invalid activate args")
+	}
+	upgradeGroup := strings.TrimSpace(sub.UpgradeGroup)
+	if upgradeGroup == "" {
+		return "", nil
+	}
+	currentGroup, err := getUserGroupByIdTx(tx, sub.UserId)
+	if err != nil {
+		return "", err
+	}
+	if currentGroup == upgradeGroup {
+		return "", nil
+	}
+	if strings.TrimSpace(sub.PrevUserGroup) == "" {
+		sub.PrevUserGroup = currentGroup
+	}
+	if err := tx.Model(&User{}).Where("id = ?", sub.UserId).
+		Update("group", upgradeGroup).Error; err != nil {
+		return "", err
+	}
+	return upgradeGroup, nil
+}
+
+func saveAdjustedUserSubscriptionWithResetTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, now int64) error {
+	if tx == nil || sub == nil || plan == nil {
+		return errors.New("invalid adjusted subscription args")
+	}
+	if sub.Status != "active" || NormalizeResetPeriod(plan.QuotaResetPeriod) == SubscriptionResetNever {
+		sub.NextResetTime = 0
+		return tx.Save(sub).Error
+	}
+	if sub.LastResetTime <= 0 {
+		sub.LastResetTime = sub.StartTime
+	}
+	if sub.NextResetTime > sub.EndTime {
+		sub.NextResetTime = 0
+	}
+	if err := maybeResetUserSubscriptionWithPlanTx(tx, sub, plan, now); err != nil {
+		return err
+	}
+	return tx.Save(sub).Error
+}
+
+// AdminAdjustUserSubscriptionTime adjusts a user subscription end time.
+// deltaDays is relative to the current end time; endTime sets an absolute end time.
+func AdminAdjustUserSubscriptionTime(userSubscriptionId int, deltaDays *int, endTime *int64) (*AdminAdjustUserSubscriptionTimeResult, string, error) {
+	if userSubscriptionId <= 0 {
+		return nil, "", errors.New("invalid userSubscriptionId")
+	}
+	if (deltaDays == nil && endTime == nil) || (deltaDays != nil && endTime != nil) {
+		return nil, "", errors.New("provide either delta_days or end_time")
+	}
+	if deltaDays != nil && *deltaDays == 0 {
+		return nil, "", errors.New("delta_days cannot be 0")
+	}
+	if endTime != nil && *endTime <= 0 {
+		return nil, "", errors.New("end_time must be greater than 0")
+	}
+
+	now := GetDBTimestamp()
+	cacheGroup := ""
+	downgradeGroup := ""
+	upgradeGroup := ""
+	var result *AdminAdjustUserSubscriptionTimeResult
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var sub UserSubscription
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where("id = ?", userSubscriptionId).First(&sub).Error; err != nil {
+			return err
+		}
+		plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
+		if err != nil {
+			return err
+		}
+		oldStatus := sub.Status
+		oldEndTime := sub.EndTime
+		newEndTime := int64(0)
+		if deltaDays != nil {
+			newEndTime = sub.EndTime + int64(*deltaDays)*24*3600
+		} else {
+			newEndTime = *endTime
+		}
+		if newEndTime <= sub.StartTime {
+			return errors.New("end_time must be after subscription start_time")
+		}
+
+		newStatus := sub.Status
+		if sub.Status != "cancelled" {
+			if newEndTime <= now {
+				newStatus = "expired"
+			} else {
+				newStatus = "active"
+			}
+		}
+		sub.EndTime = newEndTime
+		sub.Status = newStatus
+
+		if oldStatus != "active" && newStatus == "active" {
+			target, err := activateUserGroupForSubscriptionTx(tx, &sub)
+			if err != nil {
+				return err
+			}
+			if target != "" {
+				cacheGroup = target
+				upgradeGroup = target
+			}
+		}
+
+		if err := saveAdjustedUserSubscriptionWithResetTx(tx, &sub, plan, now); err != nil {
+			return err
+		}
+
+		if oldStatus == "active" && newStatus != "active" {
+			target, err := downgradeUserGroupForSubscriptionTx(tx, &sub, now)
+			if err != nil {
+				return err
+			}
+			if target != "" {
+				cacheGroup = target
+				downgradeGroup = target
+			}
+		}
+
+		subCopy := sub
+		result = &AdminAdjustUserSubscriptionTimeResult{
+			Subscription: &subCopy,
+			OldEndTime:   oldEndTime,
+			NewEndTime:   newEndTime,
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	if cacheGroup != "" && result != nil && result.Subscription != nil && result.Subscription.UserId > 0 {
+		_ = UpdateUserGroupCache(result.Subscription.UserId, cacheGroup)
+	}
+	if upgradeGroup != "" {
+		return result, fmt.Sprintf("用户分组将升级到 %s", upgradeGroup), nil
+	}
+	if downgradeGroup != "" {
+		return result, fmt.Sprintf("用户分组将回退到 %s", downgradeGroup), nil
+	}
+	return result, "", nil
 }
 
 // AdminDeleteUserSubscription hard-deletes a user subscription.

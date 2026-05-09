@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { CalendarClock, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -33,9 +42,14 @@ import {
   getUserSubscriptions,
   createUserSubscription,
   invalidateUserSubscription,
+  adjustUserSubscriptionTime,
   deleteUserSubscription,
 } from '../../api'
 import { formatTimestamp } from '../../lib'
+import {
+  formatTimestampForInput,
+  parseTimestampFromInput,
+} from '@/lib/format'
 import type { PlanRecord, UserSubscriptionRecord } from '../../types'
 
 interface Props {
@@ -89,6 +103,12 @@ export function UserSubscriptionsDialog(props: Props) {
     type: 'invalidate' | 'delete'
     subId: number
   } | null>(null)
+  const [adjustTarget, setAdjustTarget] = useState<
+    UserSubscriptionRecord['subscription'] | null
+  >(null)
+  const [adjustDays, setAdjustDays] = useState('')
+  const [adjustEndTime, setAdjustEndTime] = useState('')
+  const [adjusting, setAdjusting] = useState(false)
 
   const planTitleMap = useMemo(() => {
     const map = new Map<number, string>()
@@ -167,6 +187,57 @@ export function UserSubscriptionsDialog(props: Props) {
       toast.error(t('Operation failed'))
     } finally {
       setConfirmAction(null)
+    }
+  }
+
+  const openAdjustDialog = (sub: UserSubscriptionRecord['subscription']) => {
+    setAdjustTarget(sub)
+    setAdjustDays('')
+    setAdjustEndTime(formatTimestampForInput(sub.end_time || 0))
+  }
+
+  const closeAdjustDialog = () => {
+    setAdjustTarget(null)
+    setAdjustDays('')
+    setAdjustEndTime('')
+  }
+
+  const handleAdjustTime = async () => {
+    if (!adjustTarget) return
+    const trimmedDays = adjustDays.trim()
+    const payload: { delta_days?: number; end_time?: number } = {}
+    if (trimmedDays !== '') {
+      const days = Number(trimmedDays)
+      if (!Number.isFinite(days) || !Number.isInteger(days) || days === 0) {
+        toast.error(t('Please enter a non-zero integer day count'))
+        return
+      }
+      payload.delta_days = days
+    } else {
+      const parsed = parseTimestampFromInput(adjustEndTime)
+      if (!adjustEndTime || parsed <= 0) {
+        toast.error(t('Please enter days or set an expiry time'))
+        return
+      }
+      if (parsed === adjustTarget.end_time) {
+        toast.error(t('Please enter days or change the expiry time'))
+        return
+      }
+      payload.end_time = parsed
+    }
+    setAdjusting(true)
+    try {
+      const res = await adjustUserSubscriptionTime(adjustTarget.id, payload)
+      if (res.success) {
+        toast.success(res.data?.message || t('Adjusted successfully'))
+        closeAdjustDialog()
+        await loadData()
+        props.onSuccess?.()
+      }
+    } catch {
+      toast.error(t('Operation failed'))
+    } finally {
+      setAdjusting(false)
     }
   }
 
@@ -290,7 +361,15 @@ export function UserSubscriptionsDialog(props: Props) {
                             {total > 0 ? `${used}/${total}` : t('Unlimited')}
                           </TableCell>
                           <TableCell className='text-right'>
-                            <div className='flex justify-end gap-1'>
+                            <div className='flex flex-wrap justify-end gap-1'>
+                              <Button
+                                size='sm'
+                                variant='outline'
+                                onClick={() => openAdjustDialog(sub)}
+                              >
+                                <CalendarClock className='mr-1 h-4 w-4' />
+                                {t('Adjust')}
+                              </Button>
                               <Button
                                 size='sm'
                                 variant='outline'
@@ -351,6 +430,64 @@ export function UserSubscriptionsDialog(props: Props) {
           destructive={confirmAction.type === 'delete'}
         />
       )}
+
+      <Dialog
+        open={!!adjustTarget}
+        onOpenChange={(v) => !v && closeAdjustDialog()}
+      >
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>{t('Adjust subscription time')}</DialogTitle>
+            <DialogDescription>
+              {t(
+                'Enter positive days to extend, negative days to reduce, or set an exact expiry time.'
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-4'>
+            <div className='space-y-1.5'>
+              <label className='text-sm font-medium'>
+                {t('Days adjustment')}
+              </label>
+              <Input
+                type='number'
+                step={1}
+                placeholder={t('Example: 3 or -2')}
+                value={adjustDays}
+                onChange={(e) => setAdjustDays(e.target.value)}
+              />
+            </div>
+            <div className='space-y-1.5'>
+              <label className='text-sm font-medium'>
+                {t('Exact expiry time')}
+              </label>
+              <Input
+                type='datetime-local'
+                value={adjustEndTime}
+                onChange={(e) => setAdjustEndTime(e.target.value)}
+                disabled={adjustDays.trim() !== ''}
+              />
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  'Exact expiry time is used only when days adjustment is empty.'
+                )}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={closeAdjustDialog}
+              disabled={adjusting}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button onClick={handleAdjustTime} disabled={adjusting}>
+              {adjusting ? t('Submitting...') : t('Confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

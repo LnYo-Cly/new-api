@@ -21,6 +21,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Empty,
+  DatePicker,
+  InputNumber,
   Modal,
   Select,
   SideSheet,
@@ -84,6 +86,11 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
 
   const [subs, setSubs] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [adjustVisible, setAdjustVisible] = useState(false);
+  const [adjustTarget, setAdjustTarget] = useState(null);
+  const [adjustDays, setAdjustDays] = useState('');
+  const [adjustEndTime, setAdjustEndTime] = useState(null);
+  const [adjusting, setAdjusting] = useState(false);
   const pageSize = 10;
 
   const planTitleMap = useMemo(() => {
@@ -245,6 +252,71 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
     });
   };
 
+  const openAdjustSubscription = (sub) => {
+    setAdjustTarget(sub || null);
+    setAdjustDays('');
+    setAdjustEndTime(sub?.end_time ? new Date(sub.end_time * 1000) : null);
+    setAdjustVisible(true);
+  };
+
+  const closeAdjustSubscription = () => {
+    setAdjustVisible(false);
+    setAdjustTarget(null);
+    setAdjustDays('');
+    setAdjustEndTime(null);
+  };
+
+  const adjustSubscriptionTime = async () => {
+    if (!adjustTarget?.id) return;
+    const payload = {};
+    if (adjustDays !== '' && adjustDays !== null && adjustDays !== undefined) {
+      const days = Number(adjustDays);
+      if (!Number.isFinite(days) || !Number.isInteger(days) || days === 0) {
+        showError(t('请输入非 0 整数天数'));
+        return;
+      }
+      payload.delta_days = days;
+    } else {
+      if (!adjustEndTime) {
+        showError(t('请输入天数或设置到期时间'));
+        return;
+      }
+      const endTime = Math.floor(new Date(adjustEndTime).getTime() / 1000);
+      if (!Number.isFinite(endTime) || endTime <= 0) {
+        showError(t('到期时间无效'));
+        return;
+      }
+      if (endTime === adjustTarget.end_time) {
+        showError(t('请输入天数或修改到期时间'));
+        return;
+      }
+      payload.end_time = endTime;
+    }
+    setAdjusting(true);
+    try {
+      const res = await API.patch(
+        `/api/subscription/admin/user_subscriptions/${adjustTarget.id}/time`,
+        payload,
+      );
+      if (res.data?.success) {
+        const msg = res.data?.data?.message;
+        showSuccess(msg ? msg : t('调整成功'));
+        setAdjustVisible(false);
+        setAdjustTarget(null);
+        setAdjustDays('');
+        setAdjustEndTime(null);
+        await loadUserSubscriptions();
+        onSuccess?.();
+      } else {
+        showError(res.data?.message || t('操作失败'));
+      }
+    } catch (e) {
+      showError(t('请求失败'));
+    } finally {
+      setAdjusting(false);
+    }
+  };
+
   const columns = useMemo(() => {
     return [
       {
@@ -314,7 +386,7 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
       {
         title: '',
         key: 'operate',
-        width: 140,
+        width: 200,
         fixed: 'right',
         render: (_, record) => {
           const sub = record?.subscription;
@@ -325,6 +397,13 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
           const isCancelled = sub?.status === 'cancelled';
           return (
             <Space>
+              <Button
+                size='small'
+                theme='light'
+                onClick={() => openAdjustSubscription(sub)}
+              >
+                {t('调整')}
+              </Button>
               <Button
                 size='small'
                 type='warning'
@@ -426,6 +505,55 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
           size='middle'
         />
       </div>
+      <Modal
+        title={t('调整订阅时间')}
+        visible={adjustVisible}
+        centered
+        confirmLoading={adjusting}
+        onCancel={closeAdjustSubscription}
+        onOk={adjustSubscriptionTime}
+      >
+        <div className='space-y-4'>
+          <Text type='tertiary'>
+            {t('填写正数天数表示延期，负数天数表示扣减；不填天数时可直接设置到期时间。')}
+          </Text>
+          <div>
+            <div className='mb-1'>
+              <Text size='small'>{t('调整天数')}</Text>
+            </div>
+            <InputNumber
+              placeholder={t('例如：3 或 -2')}
+              value={adjustDays}
+              precision={0}
+              step={1}
+              onChange={(value) => setAdjustDays(value === null ? '' : value)}
+              style={{ width: '100%' }}
+              showClear
+            />
+          </div>
+          <div>
+            <div className='mb-1'>
+              <Text size='small'>{t('指定到期时间')}</Text>
+            </div>
+            <DatePicker
+              type='dateTime'
+              value={adjustEndTime}
+              disabled={
+                adjustDays !== '' &&
+                adjustDays !== null &&
+                adjustDays !== undefined
+              }
+              onChange={setAdjustEndTime}
+              style={{ width: '100%' }}
+              inputReadOnly={false}
+              showClear
+            />
+            <Text type='tertiary' size='small' className='mt-1 block'>
+              {t('只有调整天数为空时，才会使用指定到期时间。')}
+            </Text>
+          </div>
+        </div>
+      </Modal>
     </SideSheet>
   );
 };
