@@ -170,6 +170,16 @@ export type DataTablePageProps<TData> = {
   tableClassName?: string
 
   /**
+   * Inner desktop table scroll container className.
+   */
+  tableScrollClassName?: string
+
+  /**
+   * Desktop `<table>` className override.
+   */
+  tableElementClassName?: string
+
+  /**
    * Desktop `<TableHeader>` className override.
    * Useful for sticky headers (`'sticky top-0 z-10 bg-muted/30'`) on long lists.
    */
@@ -290,7 +300,10 @@ function renderDesktop<TData>(
         props.tableClassName
       )}
     >
-      <Table>
+      <Table
+        className={props.tableElementClassName}
+        containerClassName={props.tableScrollClassName}
+      >
         <TableHeader className={props.tableHeaderClassName}>
           {props.table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>

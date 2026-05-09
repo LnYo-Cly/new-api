@@ -24,6 +24,7 @@ import {
 import { getChannels, searchChannels, getGroups } from '../api'
 import {
   DEFAULT_PAGE_SIZE,
+  CODEX_ACCOUNT_STATUS_OPTIONS,
   CHANNEL_STATUS,
   CHANNEL_STATUS_OPTIONS,
 } from '../constants'
@@ -90,6 +91,7 @@ export function ChannelsTable() {
     columnFilters: [
       { columnId: 'status', searchKey: 'status', type: 'array' },
       { columnId: 'type', searchKey: 'type', type: 'array' },
+      { columnId: 'codex_status', searchKey: 'codexStatus', type: 'array' },
       { columnId: 'group', searchKey: 'group', type: 'array' },
       { columnId: 'model', searchKey: 'model', type: 'string' },
     ],
@@ -100,6 +102,9 @@ export function ChannelsTable() {
     (columnFilters.find((f) => f.id === 'status')?.value as string[]) || []
   const typeFilter =
     (columnFilters.find((f) => f.id === 'type')?.value as string[]) || []
+  const codexStatusFilter =
+    (columnFilters.find((f) => f.id === 'codex_status')?.value as string[]) ||
+    []
   const groupFilter =
     (columnFilters.find((f) => f.id === 'group')?.value as string[]) || []
   const modelFilterFromUrl =
@@ -189,6 +194,10 @@ export function ChannelsTable() {
         typeFilter.length > 0 && !typeFilter.includes('all')
           ? Number(typeFilter[0])
           : undefined,
+      codex_status:
+        codexStatusFilter.length > 0 && !codexStatusFilter.includes('all')
+          ? codexStatusFilter[0]
+          : undefined,
       tag_mode: enableTagMode,
       id_sort: idSort,
       ...sortParams,
@@ -212,6 +221,10 @@ export function ChannelsTable() {
             typeFilter.length > 0 && !typeFilter.includes('all')
               ? Number(typeFilter[0])
               : undefined,
+          codex_status:
+            codexStatusFilter.length > 0 && !codexStatusFilter.includes('all')
+              ? codexStatusFilter[0]
+              : undefined,
           tag_mode: enableTagMode,
           id_sort: idSort,
           ...sortParams,
@@ -231,6 +244,10 @@ export function ChannelsTable() {
           type:
             typeFilter.length > 0 && !typeFilter.includes('all')
               ? Number(typeFilter[0])
+              : undefined,
+          codex_status:
+            codexStatusFilter.length > 0 && !codexStatusFilter.includes('all')
+              ? codexStatusFilter[0]
               : undefined,
           tag_mode: enableTagMode,
           id_sort: idSort,
@@ -365,6 +382,9 @@ export function ChannelsTable() {
       )}
       skeletonKeyPrefix='channel-skeleton'
       applyHeaderSize
+      tableScrollClassName='max-h-[calc(100dvh-18rem)] overflow-auto'
+      tableElementClassName='min-w-max'
+      tableHeaderClassName='bg-background sticky top-0 z-20'
       toolbarProps={{
         searchPlaceholder: t('Filter by name, ID, or key...'),
         additionalSearch: (
@@ -386,6 +406,12 @@ export function ChannelsTable() {
             columnId: 'type',
             title: t('Type'),
             options: typeFilterOptions,
+            singleSelect: true,
+          },
+          {
+            columnId: 'codex_status',
+            title: t('Codex Status'),
+            options: [...CODEX_ACCOUNT_STATUS_OPTIONS],
             singleSelect: true,
           },
           {

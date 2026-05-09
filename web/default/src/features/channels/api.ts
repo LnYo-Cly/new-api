@@ -3,6 +3,8 @@ import { api } from '@/lib/api'
 import { getGroups as getUserGroups } from '@/features/users/api'
 import type {
   AddChannelRequest,
+  BatchChannelTestResponse,
+  BatchCodexUsageResponse,
   BatchDeleteParams,
   BatchRefreshCodexCredentialsResponse,
   BatchSetTagParams,
@@ -11,6 +13,7 @@ import type {
   Channel,
   ChannelBalanceResponse,
   ChannelTestResponse,
+  CodexAccountStatusSummary,
   CopyChannelParams,
   CopyChannelResponse,
   FetchModelsResponse,
@@ -55,6 +58,7 @@ export type CodexUsageResponse = {
   message?: string
   upstream_status?: number
   data?: Record<string, unknown>
+  account_status?: CodexAccountStatusSummary
 }
 
 export type CodexCredentialRefreshResponse = {
@@ -173,6 +177,28 @@ export async function batchRefreshCodexCredentials(data: {
 }): Promise<BatchRefreshCodexCredentialsResponse> {
   const config: ExtendedApiConfig = { skipBusinessError: true }
   const res = await api.post('/api/channel/batch/codex/refresh', data, config)
+  return res.data
+}
+
+/**
+ * Batch refresh Codex usage/account status for selected channels
+ */
+export async function batchRefreshCodexUsage(data: {
+  ids: number[]
+}): Promise<BatchCodexUsageResponse> {
+  const config: ExtendedApiConfig = { skipBusinessError: true }
+  const res = await api.post('/api/channel/batch/codex/usage', data, config)
+  return res.data
+}
+
+/**
+ * Batch test selected channels
+ */
+export async function batchTestChannels(data: {
+  ids: number[]
+}): Promise<BatchChannelTestResponse> {
+  const config: ExtendedApiConfig = { skipBusinessError: true }
+  const res = await api.post('/api/channel/batch/test', data, config)
   return res.data
 }
 

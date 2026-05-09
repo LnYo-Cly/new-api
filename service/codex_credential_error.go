@@ -78,6 +78,7 @@ func containsCodexCredentialInvalidSignal(text string) bool {
 	case strings.Contains(lower, "access_token is required"),
 		strings.Contains(lower, "account_id is required"),
 		strings.Contains(lower, "refresh_token is required"),
+		strings.Contains(lower, "refresh_token_reused"),
 		strings.Contains(lower, "no access token available"),
 		strings.Contains(lower, "access token unavailable"),
 		strings.Contains(lower, "invalid_grant"),

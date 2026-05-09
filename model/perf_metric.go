@@ -1,8 +1,11 @@
 package model
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -79,13 +82,31 @@ type PerfMetricSummary struct {
 
 func GetPerfMetricsSummaryAll(startTs int64, endTs int64) ([]PerfMetricSummary, error) {
 	var summaries []PerfMetricSummary
+	table := PerfMetric{}.TableName()
+	sumCol := func(column string) string {
+		return fmt.Sprintf("SUM(%s) as %s", quoteTableColumn(table, column), column)
+	}
 	err := DB.Model(&PerfMetric{}).
-		Select("model_name, SUM(request_count) as request_count, SUM(success_count) as success_count, SUM(total_latency_ms) as total_latency_ms, SUM(output_tokens) as output_tokens, SUM(generation_ms) as generation_ms").
+		Select(strings.Join([]string{
+			"model_name",
+			sumCol("request_count"),
+			sumCol("success_count"),
+			sumCol("total_latency_ms"),
+			sumCol("output_tokens"),
+			sumCol("generation_ms"),
+		}, ", ")).
 		Where("bucket_ts >= ? AND bucket_ts <= ?", startTs, endTs).
 		Group("model_name").
 		Having("SUM(request_count) > 0").
 		Find(&summaries).Error
 	return summaries, err
+}
+
+func quoteTableColumn(table string, column string) string {
+	if common.UsingPostgreSQL {
+		return fmt.Sprintf(`"%s"."%s"`, table, column)
+	}
+	return fmt.Sprintf("`%s`.`%s`", table, column)
 }
 
 func DeletePerfMetricsBefore(cutoffTs int64) error {

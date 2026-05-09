@@ -411,7 +411,7 @@ func fetchCodexChannelUpstreamModelIDs(channel *model.Channel, baseURL string) (
 	}
 
 	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("codex models upstream status: %d", statusCode)
+		return nil, fmt.Errorf("codex models upstream status: %d, body: %s", statusCode, limitUpstreamErrorBody(body))
 	}
 
 	ids, err := service.ParseCodexModelIDs(body)
@@ -422,6 +422,18 @@ func fetchCodexChannelUpstreamModelIDs(channel *model.Channel, baseURL string) (
 		return nil, fmt.Errorf("codex models response is empty")
 	}
 	return normalizeModelNames(ids), nil
+}
+
+func limitUpstreamErrorBody(body []byte) string {
+	text := strings.TrimSpace(string(body))
+	if text == "" {
+		return "-"
+	}
+	const maxLen = 500
+	if len(text) <= maxLen {
+		return text
+	}
+	return text[:maxLen] + "..."
 }
 
 func updateChannelUpstreamModelSettings(channel *model.Channel, settings dto.ChannelOtherSettings, updateModels bool) error {

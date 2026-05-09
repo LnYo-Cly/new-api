@@ -2,8 +2,11 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type Table } from '@tanstack/react-table'
 import {
+  Activity,
+  BarChart3,
   BrainCircuit,
   KeyRound,
+  Loader2,
   Power,
   PowerOff,
   Tag,
@@ -11,6 +14,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Dialog,
   DialogContent,
@@ -26,7 +30,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
+import { batchRefreshCodexUsage, batchTestChannels } from '../api'
 import { CHANNEL_TYPE_CODEX } from '../constants'
 import {
   handleBatchDelete,
@@ -42,6 +48,100 @@ interface DataTableBulkActionsProps<TData> {
   table: Table<TData>
 }
 
+type BatchFailure = {
+  channel_id: number
+  channel_name: string
+  message: string
+  error_code?: string
+}
+
+type BatchOperationResult = {
+  title: string
+  summary: Array<{
+    label: string
+    value: number
+    variant?: StatusBadgeProps['variant']
+  }>
+  failures: BatchFailure[]
+}
+
+function BatchOperationResultDialog(props: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  result: BatchOperationResult | null
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-2xl'>
+        <DialogHeader>
+          <DialogTitle>{t('Batch operation results')}</DialogTitle>
+          <DialogDescription>{props.result?.title}</DialogDescription>
+        </DialogHeader>
+
+        <div className='min-h-0 flex-1 space-y-4 overflow-hidden'>
+          <div className='flex flex-wrap gap-2'>
+            {props.result?.summary.map((item) => (
+              <StatusBadge
+                key={item.label}
+                label={`${t(item.label)}: ${item.value}`}
+                variant={item.variant ?? 'neutral'}
+                copyable={false}
+              />
+            ))}
+          </div>
+
+          <div className='rounded-lg border'>
+            <div className='border-b px-3 py-2 text-sm font-medium'>
+              {t('Failures')} ({props.result?.failures.length ?? 0})
+            </div>
+            <ScrollArea className='h-[min(45vh,360px)]'>
+              {props.result?.failures.length ? (
+                <div className='divide-y'>
+                  {props.result.failures.map((failure) => (
+                    <div
+                      key={`${failure.channel_id}-${failure.error_code ?? ''}-${failure.message}`}
+                      className='space-y-1 px-3 py-2 text-xs'
+                    >
+                      <div className='flex flex-wrap items-center gap-2'>
+                        <span className='font-mono'>#{failure.channel_id}</span>
+                        <span className='font-medium'>
+                          {failure.channel_name || '-'}
+                        </span>
+                        {failure.error_code && (
+                          <StatusBadge
+                            label={failure.error_code}
+                            variant='neutral'
+                            copyable={false}
+                          />
+                        )}
+                      </div>
+                      <div className='text-muted-foreground break-words'>
+                        {failure.message}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className='text-muted-foreground px-3 py-6 text-center text-sm'>
+                  {t('No failures')}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant='outline' onClick={() => props.onOpenChange(false)}>
+            {t('Close')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function DataTableBulkActions<TData>(
   props: DataTableBulkActionsProps<TData>
 ) {
@@ -51,6 +151,13 @@ export function DataTableBulkActions<TData>(
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showRefreshCodexConfirm, setShowRefreshCodexConfirm] = useState(false)
   const [showModelsDialog, setShowModelsDialog] = useState(false)
+  const [resultDialogOpen, setResultDialogOpen] = useState(false)
+  const [batchResult, setBatchResult] = useState<BatchOperationResult | null>(
+    null
+  )
+  const [batchLoading, setBatchLoading] = useState<
+    'test' | 'codex_usage' | null
+  >(null)
   const [tagValue, setTagValue] = useState('')
 
   const selectedRows = props.table.getFilteredSelectedRowModel().rows
@@ -103,9 +210,181 @@ export function DataTableBulkActions<TData>(
     })
   }
 
+  const showResult = (result: BatchOperationResult) => {
+    setBatchResult(result)
+    setResultDialogOpen(true)
+  }
+
+  const handleBatchTestSelected = async () => {
+    if (selectedIds.length === 0 || batchLoading) return
+    setBatchLoading('test')
+    try {
+      const response = await batchTestChannels({ ids: selectedIds })
+      if (!response.success || !response.data) {
+        throw new Error(response.message || t('Batch channel test failed'))
+      }
+      showResult({
+        title: t(
+          'Batch channel test completed: {{tested}} tested, {{failed}} failed',
+          {
+            tested: response.data.tested_channels,
+            failed: response.data.failed_channels,
+          }
+        ),
+        summary: [
+          {
+            label: 'Tested',
+            value: response.data.tested_channels,
+            variant: 'success',
+          },
+          {
+            label: 'Failed',
+            value: response.data.failed_channels,
+            variant: response.data.failed_channels > 0 ? 'danger' : 'neutral',
+          },
+        ],
+        failures: response.data.failures ?? [],
+      })
+      queryClient.invalidateQueries({ queryKey: ['channels', 'list'] })
+      handleClearSelection()
+    } catch (error) {
+      showResult({
+        title:
+          error instanceof Error
+            ? error.message
+            : t('Batch channel test failed'),
+        summary: [
+          { label: 'Failed', value: selectedIds.length, variant: 'danger' },
+        ],
+        failures: [],
+      })
+    } finally {
+      setBatchLoading(null)
+    }
+  }
+
+  const handleRefreshCodexUsage = async () => {
+    if (selectedIds.length === 0 || batchLoading) return
+    setBatchLoading('codex_usage')
+    try {
+      const response = await batchRefreshCodexUsage({ ids: selectedIds })
+      if (!response.success || !response.data) {
+        throw new Error(
+          response.message || t('Batch Codex usage refresh failed')
+        )
+      }
+      showResult({
+        title: t(
+          'Codex usage refresh completed: {{updated}} updated, {{failed}} failed, {{invalid}} invalid, {{exhausted}} exhausted',
+          {
+            updated: response.data.updated_channels,
+            failed: response.data.failed_channels,
+            invalid: response.data.invalid_channels,
+            exhausted: response.data.exhausted_channels,
+          }
+        ),
+        summary: [
+          {
+            label: 'Updated',
+            value: response.data.updated_channels,
+            variant: 'success',
+          },
+          {
+            label: 'Failed',
+            value: response.data.failed_channels,
+            variant: response.data.failed_channels > 0 ? 'danger' : 'neutral',
+          },
+          {
+            label: 'Invalid',
+            value: response.data.invalid_channels,
+            variant: response.data.invalid_channels > 0 ? 'danger' : 'neutral',
+          },
+          {
+            label: 'Exhausted',
+            value: response.data.exhausted_channels,
+            variant:
+              response.data.exhausted_channels > 0 ? 'warning' : 'neutral',
+          },
+        ],
+        failures: response.data.failures ?? [],
+      })
+      queryClient.invalidateQueries({ queryKey: ['channels', 'list'] })
+      handleClearSelection()
+    } catch (error) {
+      showResult({
+        title:
+          error instanceof Error
+            ? error.message
+            : t('Batch Codex usage refresh failed'),
+        summary: [
+          { label: 'Failed', value: selectedIds.length, variant: 'danger' },
+        ],
+        failures: [],
+      })
+    } finally {
+      setBatchLoading(null)
+    }
+  }
+
   return (
     <>
       <BulkActionsToolbar table={props.table} entityName='channel'>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='outline'
+                size='icon'
+                onClick={handleBatchTestSelected}
+                disabled={Boolean(batchLoading)}
+                className='size-8'
+                aria-label={t('Run tests for selected channels')}
+                title={t('Run tests for selected channels')}
+              />
+            }
+          >
+            {batchLoading === 'test' ? (
+              <Loader2 className='animate-spin' />
+            ) : (
+              <Activity />
+            )}
+            <span className='sr-only'>
+              {t('Run tests for selected channels')}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{t('Run tests for selected channels')}</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='outline'
+                size='icon'
+                onClick={handleRefreshCodexUsage}
+                disabled={codexSelectedCount === 0 || Boolean(batchLoading)}
+                className='size-8'
+                aria-label={t('Refresh selected Codex usage')}
+                title={t('Refresh selected Codex usage')}
+              />
+            }
+          >
+            {batchLoading === 'codex_usage' ? (
+              <Loader2 className='animate-spin' />
+            ) : (
+              <BarChart3 />
+            )}
+            <span className='sr-only'>
+              {t('Refresh selected Codex usage')}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{t('Refresh selected Codex usage')}</p>
+          </TooltipContent>
+        </Tooltip>
+
         <Tooltip>
           <TooltipTrigger
             render={
@@ -134,7 +413,7 @@ export function DataTableBulkActions<TData>(
                 variant='outline'
                 size='icon'
                 onClick={() => setShowRefreshCodexConfirm(true)}
-                disabled={codexSelectedCount === 0}
+                disabled={codexSelectedCount === 0 || Boolean(batchLoading)}
                 className='size-8'
                 aria-label={t('Refresh selected Codex OAuth tokens')}
                 title={t('Refresh selected Codex OAuth tokens')}
@@ -341,6 +620,12 @@ export function DataTableBulkActions<TData>(
         onOpenChange={setShowModelsDialog}
         selectedIds={selectedIds}
         onCompleted={handleClearSelection}
+      />
+
+      <BatchOperationResultDialog
+        open={resultDialogOpen}
+        onOpenChange={setResultDialogOpen}
+        result={batchResult}
       />
     </>
   )

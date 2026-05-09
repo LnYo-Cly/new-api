@@ -35,7 +35,11 @@ import {
   textColorMap,
 } from '@/components/status-badge'
 import { getCodexUsage } from '../api'
-import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
+import {
+  CHANNEL_STATUS_CONFIG,
+  CHANNEL_TYPE_CODEX,
+  MODEL_FETCHABLE_TYPES,
+} from '../constants'
 import {
   formatBalance,
   formatRelativeTime,
@@ -43,11 +47,15 @@ import {
   getBalanceVariant,
   getChannelTypeIcon,
   getChannelTypeLabel,
+  getCodexAccountStatusConfig,
+  getCodexAccountStatusValue,
   getResponseTimeConfig,
   isMultiKeyChannel,
   parseModelsList,
   parseGroupsList,
   parseChannelSettings,
+  parseCodexAccountStatus,
+  formatCodexUsageWindow,
   handleUpdateChannelField,
   handleUpdateTagField,
   handleUpdateChannelBalance,
@@ -421,6 +429,73 @@ function BalanceCell({ channel }: { channel: Channel }) {
         }}
         isRefreshing={isUpdating}
       />
+    </TooltipProvider>
+  )
+}
+
+function CodexAccountStatusCell({ channel }: { channel: Channel }) {
+  const { t } = useTranslation()
+  const isTagRow = isTagAggregateRow(channel)
+
+  if (isTagRow || channel.type !== CHANNEL_TYPE_CODEX) {
+    return <span className='text-muted-foreground text-xs'>-</span>
+  }
+
+  const summary = parseCodexAccountStatus(channel)
+  const status = getCodexAccountStatusValue(channel)
+  const config = getCodexAccountStatusConfig(status)
+  const usageText = formatCodexUsageWindow(summary)
+  const checkedAt = summary?.checked_at
+    ? formatTimestampToDate(summary.checked_at)
+    : ''
+
+  return (
+    <TooltipProvider delay={100}>
+      <Tooltip>
+        <TooltipTrigger render={<div className='inline-flex max-w-[180px]' />}>
+          <div className='flex min-w-0 items-center gap-2'>
+            <StatusBadge
+              label={t(config.label)}
+              variant={config.variant}
+              size='sm'
+              copyable={false}
+            />
+            {usageText && (
+              <span className='text-muted-foreground truncate font-mono text-xs'>
+                {usageText}
+              </span>
+            )}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side='top' className='max-w-sm'>
+          <div className='space-y-1 text-xs'>
+            <div>
+              {t('Codex Status')}: {t(config.label)}
+            </div>
+            {usageText && (
+              <div>
+                {t('Usage')}: {usageText}
+              </div>
+            )}
+            {checkedAt && (
+              <div>
+                {t('Last checked')}: {checkedAt}
+              </div>
+            )}
+            {typeof summary?.upstream_status === 'number' &&
+              summary.upstream_status > 0 && (
+                <div>
+                  {t('Upstream status')}: {summary.upstream_status}
+                </div>
+              )}
+            {summary?.message && (
+              <div className='text-muted-foreground break-words'>
+                {summary.message}
+              </div>
+            )}
+          </div>
+        </TooltipContent>
+      </Tooltip>
     </TooltipProvider>
   )
 }
@@ -826,6 +901,23 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         return false
       },
       size: 120,
+      enableSorting: false,
+    },
+
+    // Codex Account Status column
+    {
+      id: 'codex_status',
+      meta: { label: t('Codex Status'), mobileHidden: true },
+      header: t('Codex Status'),
+      cell: ({ row }) => (
+        <CodexAccountStatusCell channel={row.original as Channel} />
+      ),
+      filterFn: (row, _id, value) => {
+        if (!value || value.length === 0 || value.includes('all')) return true
+        const channel = row.original as Channel
+        return value.includes(getCodexAccountStatusValue(channel))
+      },
+      size: 180,
       enableSorting: false,
     },
 

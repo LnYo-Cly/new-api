@@ -397,7 +397,7 @@ export function CodexUsageDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-3xl'>
+      <DialogContent className='flex max-h-[90vh] flex-col overflow-hidden sm:max-w-3xl'>
         <DialogHeader>
           <DialogTitle className='flex items-center gap-2'>
             {t('Codex Account & Usage')}
@@ -408,7 +408,7 @@ export function CodexUsageDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className='space-y-4'>
+        <div className='min-h-0 flex-1 space-y-4 overflow-y-auto pr-1'>
           {errorMessage && (
             <div className='rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400'>
               {errorMessage}
@@ -556,8 +556,8 @@ export function CodexUsageDialog({
                     {t('Copy')}
                   </Button>
                 </div>
-                <ScrollArea className='max-h-[50vh]'>
-                  <pre className='bg-muted/30 m-0 p-3 text-xs break-words whitespace-pre-wrap'>
+                <ScrollArea className='h-[min(45vh,420px)] border-t'>
+                  <pre className='bg-muted/30 m-0 min-w-max p-3 font-mono text-xs whitespace-pre'>
                     {rawJsonText || '-'}
                   </pre>
                 </ScrollArea>

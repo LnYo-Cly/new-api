@@ -89,6 +89,36 @@ export interface ChannelOtherSettings {
   upstream_model_update_last_detected_models?: string[]
 }
 
+export type CodexAccountStatus =
+  | 'available'
+  | 'quota_exhausted'
+  | 'credential_invalid'
+  | 'query_failed'
+  | 'not_checked'
+  | 'unknown'
+
+export interface CodexRateLimitWindowSummary {
+  used_percent?: number
+  reset_at?: number
+  reset_after_seconds?: number
+  window_seconds?: number
+  label?: string
+}
+
+export interface CodexAccountStatusSummary {
+  status: CodexAccountStatus
+  message?: string
+  upstream_status?: number
+  checked_at?: number
+  plan_type?: string
+  email?: string
+  account_id?: string
+  user_id?: string
+  windows?: CodexRateLimitWindowSummary[]
+  five_hour_window?: CodexRateLimitWindowSummary
+  weekly_window?: CodexRateLimitWindowSummary
+}
+
 // ============================================================================
 // API Response Types
 // ============================================================================
@@ -209,6 +239,7 @@ export interface GetChannelsParams {
   page_size?: number
   status?: string // 'enabled', 'disabled', or empty for all
   type?: number
+  codex_status?: string
   group?: string
   id_sort?: boolean
   tag_mode?: boolean
@@ -222,6 +253,7 @@ export interface SearchChannelsParams {
   model?: string
   status?: string
   type?: number
+  codex_status?: string
   id_sort?: boolean
   tag_mode?: boolean
   sort_by?: ChannelSortBy
@@ -302,6 +334,37 @@ export interface BatchRefreshCodexCredentialsResponse {
       channel_id: number
       channel_name: string
       message: string
+    }>
+  }
+}
+
+export interface BatchCodexUsageResponse {
+  success: boolean
+  message?: string
+  data?: {
+    updated_channels: number
+    failed_channels: number
+    invalid_channels: number
+    exhausted_channels: number
+    failures?: Array<{
+      channel_id: number
+      channel_name: string
+      message: string
+    }>
+  }
+}
+
+export interface BatchChannelTestResponse {
+  success: boolean
+  message?: string
+  data?: {
+    tested_channels: number
+    failed_channels: number
+    failures?: Array<{
+      channel_id: number
+      channel_name: string
+      message: string
+      error_code?: string
     }>
   }
 }

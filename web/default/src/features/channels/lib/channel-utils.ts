@@ -1,15 +1,23 @@
 import { formatCurrencyFromUSD, formatQuotaWithCurrency } from '@/lib/currency'
 import dayjs from '@/lib/dayjs'
 import { formatTimestampToDate } from '@/lib/format'
+import type { StatusBadgeProps } from '@/components/status-badge'
 import {
   CHANNEL_STATUS_CONFIG,
   CHANNEL_TYPES,
+  CHANNEL_TYPE_CODEX,
   MULTI_KEY_STATUS_CONFIG,
   RESPONSE_TIME_CONFIG,
   RESPONSE_TIME_THRESHOLDS,
   TYPE_TO_KEY_PROMPT,
 } from '../constants'
-import type { Channel, ChannelSettings, ChannelOtherSettings } from '../types'
+import type {
+  Channel,
+  ChannelSettings,
+  ChannelOtherSettings,
+  CodexAccountStatus,
+  CodexAccountStatusSummary,
+} from '../types'
 
 // ============================================================================
 // Channel Type Utilities
@@ -138,6 +146,66 @@ export function isChannelEnabled(channel: Channel): boolean {
  */
 export function isMultiKeyChannel(channel: Channel): boolean {
   return channel.channel_info?.is_multi_key || false
+}
+
+// ============================================================================
+// Codex Account Status Utilities
+// ============================================================================
+
+const CODEX_STATUS_CONFIG: Record<
+  CodexAccountStatus,
+  { label: string; variant: StatusBadgeProps['variant'] }
+> = {
+  available: { label: 'Available', variant: 'success' },
+  quota_exhausted: { label: 'Quota Exhausted', variant: 'warning' },
+  credential_invalid: { label: 'Credential Invalid', variant: 'danger' },
+  query_failed: { label: 'Query Failed', variant: 'neutral' },
+  not_checked: { label: 'Not Checked', variant: 'neutral' },
+  unknown: { label: 'Unknown', variant: 'neutral' },
+}
+
+export function parseCodexAccountStatus(
+  channel: Channel
+): CodexAccountStatusSummary | null {
+  if (channel.type !== CHANNEL_TYPE_CODEX || !channel.other_info) return null
+  try {
+    const parsed = JSON.parse(channel.other_info) as {
+      codex_account?: CodexAccountStatusSummary
+    }
+    if (!parsed?.codex_account || typeof parsed.codex_account !== 'object') {
+      return null
+    }
+    return parsed.codex_account
+  } catch {
+    return null
+  }
+}
+
+export function getCodexAccountStatusValue(
+  channel: Channel
+): CodexAccountStatus {
+  const status = parseCodexAccountStatus(channel)?.status
+  if (!status) return 'not_checked'
+  if (status in CODEX_STATUS_CONFIG) return status
+  return 'unknown'
+}
+
+export function getCodexAccountStatusConfig(status: CodexAccountStatus) {
+  return CODEX_STATUS_CONFIG[status] ?? CODEX_STATUS_CONFIG.unknown
+}
+
+export function formatCodexUsageWindow(
+  summary: CodexAccountStatusSummary | null | undefined
+): string {
+  if (!summary) return ''
+  const parts: string[] = []
+  if (typeof summary.five_hour_window?.used_percent === 'number') {
+    parts.push(`5h ${summary.five_hour_window.used_percent}%`)
+  }
+  if (typeof summary.weekly_window?.used_percent === 'number') {
+    parts.push(`7d ${summary.weekly_window.used_percent}%`)
+  }
+  return parts.join(' · ')
 }
 
 // ============================================================================

@@ -63,6 +63,30 @@ func parseStatusFilter(statusParam string) int {
 	}
 }
 
+func parseCodexAccountStatusFilter(c *gin.Context) string {
+	status := strings.ToLower(strings.TrimSpace(c.Query("codex_status")))
+	switch status {
+	case service.CodexAccountStatusAvailable,
+		service.CodexAccountStatusQuotaExhausted,
+		service.CodexAccountStatusCredentialInvalid,
+		service.CodexAccountStatusQueryFailed,
+		service.CodexAccountStatusNotChecked:
+		return status
+	default:
+		return ""
+	}
+}
+
+func matchesCodexAccountStatusFilter(ch *model.Channel, status string) bool {
+	if status == "" {
+		return true
+	}
+	if ch == nil || ch.Type != constant.ChannelTypeCodex {
+		return false
+	}
+	return service.GetCodexAccountStatusValue(ch.OtherInfo) == status
+}
+
 func clearChannelInfo(channel *model.Channel) {
 	if channel.ChannelInfo.IsMultiKey {
 		channel.ChannelInfo.MultiKeyDisabledReason = nil
@@ -77,6 +101,7 @@ func GetAllChannels(c *gin.Context) {
 	sortOptions := model.NewChannelSortOptions(c.Query("sort_by"), c.Query("sort_order"), idSort)
 	enableTagMode, _ := strconv.ParseBool(c.Query("tag_mode"))
 	statusParam := c.Query("status")
+	codexStatusFilter := parseCodexAccountStatusFilter(c)
 	// statusFilter: -1 all, 1 enabled, 0 disabled (include auto & manual)
 	statusFilter := parseStatusFilter(statusParam)
 	// type filter
@@ -116,6 +141,9 @@ func GetAllChannels(c *gin.Context) {
 				if typeFilter >= 0 && ch.Type != typeFilter {
 					continue
 				}
+				if !matchesCodexAccountStatusFilter(ch, codexStatusFilter) {
+					continue
+				}
 				filtered = append(filtered, ch)
 			}
 			channelData = append(channelData, filtered...)
@@ -126,19 +154,43 @@ func GetAllChannels(c *gin.Context) {
 		if typeFilter >= 0 {
 			baseQuery = baseQuery.Where("type = ?", typeFilter)
 		}
+		if codexStatusFilter != "" {
+			baseQuery = baseQuery.Where("type = ?", constant.ChannelTypeCodex)
+		}
 		if statusFilter == common.ChannelStatusEnabled {
 			baseQuery = baseQuery.Where("status = ?", common.ChannelStatusEnabled)
 		} else if statusFilter == 0 {
 			baseQuery = baseQuery.Where("status != ?", common.ChannelStatusEnabled)
 		}
 
-		baseQuery.Count(&total)
-
-		err := sortOptions.Apply(baseQuery).Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Omit("key").Find(&channelData).Error
+		query := sortOptions.Apply(baseQuery).Omit("key")
+		if codexStatusFilter == "" {
+			baseQuery.Count(&total)
+			query = query.Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx())
+		}
+		err := query.Find(&channelData).Error
 		if err != nil {
 			common.SysError("failed to get channels: " + err.Error())
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取渠道列表失败，请稍后重试"})
 			return
+		}
+		if codexStatusFilter != "" {
+			filtered := make([]*model.Channel, 0, len(channelData))
+			for _, ch := range channelData {
+				if matchesCodexAccountStatusFilter(ch, codexStatusFilter) {
+					filtered = append(filtered, ch)
+				}
+			}
+			total = int64(len(filtered))
+			startIdx := pageInfo.GetStartIdx()
+			if startIdx > len(filtered) {
+				startIdx = len(filtered)
+			}
+			endIdx := startIdx + pageInfo.GetPageSize()
+			if endIdx > len(filtered) {
+				endIdx = len(filtered)
+			}
+			channelData = filtered[startIdx:endIdx]
 		}
 	}
 
@@ -151,6 +203,9 @@ func GetAllChannels(c *gin.Context) {
 		countQuery = countQuery.Where("status = ?", common.ChannelStatusEnabled)
 	} else if statusFilter == 0 {
 		countQuery = countQuery.Where("status != ?", common.ChannelStatusEnabled)
+	}
+	if codexStatusFilter != "" {
+		countQuery = countQuery.Where("type = ?", constant.ChannelTypeCodex)
 	}
 	var results []struct {
 		Type  int64
@@ -248,6 +303,7 @@ func SearchChannels(c *gin.Context) {
 	group := c.Query("group")
 	modelKeyword := c.Query("model")
 	statusParam := c.Query("status")
+	codexStatusFilter := parseCodexAccountStatusFilter(c)
 	statusFilter := parseStatusFilter(statusParam)
 	idSort, _ := strconv.ParseBool(c.Query("id_sort"))
 	sortOptions := model.NewChannelSortOptions(c.Query("sort_by"), c.Query("sort_order"), idSort)
@@ -292,6 +348,16 @@ func SearchChannels(c *gin.Context) {
 				continue
 			}
 			filtered = append(filtered, ch)
+		}
+		channelData = filtered
+	}
+
+	if codexStatusFilter != "" {
+		filtered := make([]*model.Channel, 0, len(channelData))
+		for _, ch := range channelData {
+			if matchesCodexAccountStatusFilter(ch, codexStatusFilter) {
+				filtered = append(filtered, ch)
+			}
 		}
 		channelData = filtered
 	}
@@ -1049,6 +1115,17 @@ func refreshSingleCodexChannelCredential(ctx context.Context, ch *model.Channel)
 	if ch == nil {
 		return result
 	}
+	persistSummary := func(summary service.CodexAccountStatusSummary) {
+		otherInfo := service.MergeCodexAccountStatusIntoOtherInfo(ch.OtherInfo, summary)
+		if otherInfo == ch.OtherInfo {
+			return
+		}
+		if err := model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Update("other_info", otherInfo).Error; err != nil {
+			common.SysError(fmt.Sprintf("failed to update codex account status: channel_id=%d err=%v", ch.Id, err))
+			return
+		}
+		ch.OtherInfo = otherInfo
+	}
 	fail := func(message string) BatchRefreshCodexCredentialsResult {
 		result.FailedChannels = 1
 		result.Failures = append(result.Failures, BatchRefreshCodexCredentialsFailure{
@@ -1069,15 +1146,24 @@ func refreshSingleCodexChannelCredential(ctx context.Context, ch *model.Channel)
 	refreshCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	_, _, err := service.RefreshCodexChannelCredential(refreshCtx, ch.Id, service.CodexCredentialRefreshOptions{ResetCaches: false})
+	_, refreshedChannel, err := service.RefreshCodexChannelCredential(refreshCtx, ch.Id, service.CodexCredentialRefreshOptions{ResetCaches: false})
 	if err != nil {
+		summary := service.NewCodexAccountQueryFailedSummary(0, err.Error())
 		result = fail(err.Error())
-		if service.IsCodexCredentialInvalidError(err) && ch.GetAutoBan() {
-			service.DisableChannel(*types.NewChannelError(ch.Id, ch.Type, ch.Name, ch.ChannelInfo.IsMultiKey, "", ch.GetAutoBan()), err.Error())
-			result.DisabledChannels = 1
+		if service.IsCodexCredentialInvalidError(err) {
+			summary.Status = service.CodexAccountStatusCredentialInvalid
+			if ch.GetAutoBan() {
+				service.DisableChannel(*types.NewChannelError(ch.Id, ch.Type, ch.Name, ch.ChannelInfo.IsMultiKey, "", ch.GetAutoBan()), err.Error())
+				result.DisabledChannels = 1
+			}
 		}
+		persistSummary(summary)
 		return result
 	}
+	if refreshedChannel != nil {
+		*ch = *refreshedChannel
+	}
+	persistSummary(service.NewCodexAccountNotCheckedSummary("codex oauth token refreshed; usage not checked yet"))
 
 	result.RefreshedChannels = 1
 	return result
