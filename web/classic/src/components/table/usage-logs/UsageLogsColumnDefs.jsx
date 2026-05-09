@@ -94,6 +94,14 @@ function buildChannelAffinityTooltip(affinity, t) {
   );
 }
 
+function getRetryChainFromLogOther(other) {
+  const useChannel = other?.admin_info?.use_channel;
+  if (!Array.isArray(useChannel) || useChannel.length <= 1) {
+    return '';
+  }
+  return useChannel.join('->');
+}
+
 // Render functions
 function renderType(type, t) {
   switch (type) {
@@ -500,6 +508,7 @@ export const getLogsColumns = ({
         let affinity = null;
         let showMarker = false;
         let other = getLogOther(record.other);
+        let retryChain = getRetryChainFromLogOther(other);
         if (other?.admin_info) {
           let adminInfo = other.admin_info;
           if (adminInfo?.is_multi_key) {
@@ -578,6 +587,13 @@ export const getLogsColumns = ({
               <Tag color='white' shape='circle'>
                 {multiKeyIndex}
               </Tag>
+            )}
+            {retryChain && (
+              <Tooltip content={`${t('重试链路')}：${retryChain}`}>
+                <Tag color='red' shape='circle'>
+                  {retryChain}
+                </Tag>
+              </Tooltip>
             )}
           </Space>
         ) : null;
@@ -878,22 +894,9 @@ export const getLogsColumns = ({
           return <></>;
         }
         let content = t('渠道') + `：${record.channel}`;
-        if (record.other !== '') {
-          let other = JSON.parse(record.other);
-          if (other === null) {
-            return <></>;
-          }
-          if (other.admin_info !== undefined) {
-            if (
-              other.admin_info.use_channel !== null &&
-              other.admin_info.use_channel !== undefined &&
-              other.admin_info.use_channel !== ''
-            ) {
-              let useChannel = other.admin_info.use_channel;
-              let useChannelStr = useChannel.join('->');
-              content = t('渠道') + `：${useChannelStr}`;
-            }
-          }
+        let retryChain = getRetryChainFromLogOther(getLogOther(record.other));
+        if (retryChain) {
+          content = t('重试链路') + `：${retryChain}`;
         }
         return isAdminUser ? <div>{content}</div> : <></>;
       },

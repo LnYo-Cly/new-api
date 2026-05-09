@@ -624,6 +624,15 @@ export const useLogsData = () => {
         });
       }
       if (isAdminUser && logs[i].type !== 6 && logs[i].type !== 1) {
+        const useChannel = other?.admin_info?.use_channel;
+        if (Array.isArray(useChannel) && useChannel.length > 1) {
+          expandDataLocal.push({
+            key: t('重试链路'),
+            value: useChannel.join('->'),
+          });
+        }
+      }
+      if (isAdminUser && logs[i].type !== 6 && logs[i].type !== 1) {
         expandDataLocal.push({
           key: t('请求转换'),
           value: requestConversionDisplayValue(other?.request_conversion),
