@@ -399,7 +399,7 @@ export function UpdateCheckerSection({
         onOpenChange={setRestartConfirmOpen}
         title={t('Restart service?')}
         desc={t(
-          'The server will run the configured SELF_RESTART_COMMAND. Active requests and streaming responses may be interrupted; persisted data is safe only when database and data volumes are configured correctly.'
+          'The server will run the configured SELF_RESTART_COMMAND. A single-instance deployment may return 502 briefly while the container or process is replaced. Existing requests will be given a graceful shutdown window, but seamless restarts require multiple instances behind a load balancer.'
         )}
         confirmText={restarting ? t('Restarting...') : t('Restart service')}
         isLoading={restarting || recoveryChecking}

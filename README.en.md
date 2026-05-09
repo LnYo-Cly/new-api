@@ -323,6 +323,7 @@ docker run --name new-api -d --restart always \
 | `SELF_RESTART_COMMAND` | Command submitted when root restarts the service | - |
 | `SELF_UPDATE_TIMEOUT_SECONDS` | Update command timeout | `300` |
 | `SELF_RESTART_TIMEOUT_SECONDS` | Restart command timeout | `30` |
+| `GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS` | Graceful HTTP shutdown timeout after SIGINT/SIGTERM. Existing requests get this window to finish before the server is forced closed | `30` |
 
 📖 **Complete configuration:** [Environment Variables Documentation](https://docs.newapi.pro/en/docs/installation/config-maintenance/environment-variables)
 
@@ -330,7 +331,7 @@ docker run --name new-api -d --restart always \
 
 ### 🛠️ Self-Update Safety Notes
 
-The root-only self-update buttons in System Settings execute the commands configured by `SELF_UPDATE_COMMAND` and `SELF_RESTART_COMMAND`. The application adds an in-process operation lock, idempotent operation IDs, and a post-restart recovery check, but a single running instance is still not zero-downtime: active requests and streaming responses can be interrupted during restart.
+The root-only self-update buttons in System Settings execute the commands configured by `SELF_UPDATE_COMMAND` and `SELF_RESTART_COMMAND`. The application adds an in-process operation lock, idempotent operation IDs, a post-restart recovery check, and graceful HTTP shutdown on SIGINT/SIGTERM. Existing requests get a shutdown window, but a single running instance is still not zero-downtime: new requests can briefly return 502 while the container or process is being replaced.
 
 To avoid data loss during self-update or manual upgrades:
 
@@ -340,7 +341,7 @@ To avoid data loss during self-update or manual upgrades:
 - Mount log directories if logs must survive container replacement.
 - Do not run destructive volume commands such as `docker compose down -v` during upgrades.
 
-For near-zero downtime, run multiple application instances behind a load balancer and update them with a rolling deployment. The built-in self-update flow is intended for safer single-instance maintenance, not seamless traffic draining.
+For near-zero downtime, run multiple application instances behind a load balancer and update them with a rolling deployment or blue-green switch. The built-in self-update flow is intended for safer single-instance maintenance, not seamless traffic draining.
 
 ### 🔧 Deployment Methods
 

@@ -2,13 +2,17 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -159,8 +163,8 @@ func main() {
 	}
 
 	// Initialize HTTP server
-	server := gin.New()
-	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
+	engine := gin.New()
+	engine.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		common.SysLog(fmt.Sprintf("panic detected: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
@@ -171,10 +175,10 @@ func main() {
 	}))
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
-	server.Use(middleware.RequestId())
-	server.Use(middleware.PoweredBy())
-	server.Use(middleware.I18n())
-	middleware.SetUpLogger(server)
+	engine.Use(middleware.RequestId())
+	engine.Use(middleware.PoweredBy())
+	engine.Use(middleware.I18n())
+	middleware.SetUpLogger(engine)
 	// Initialize session store
 	store := cookie.NewStore([]byte(common.SessionSecret))
 	store.Options(sessions.Options{
@@ -184,13 +188,13 @@ func main() {
 		Secure:   false,
 		SameSite: http.SameSiteStrictMode,
 	})
-	server.Use(sessions.Sessions("session", store))
+	engine.Use(sessions.Sessions("session", store))
 
 	InjectUmamiAnalytics()
 	InjectGoogleAnalytics()
 
 	// 设置路由
-	router.SetRouter(server, router.ThemeAssets{
+	router.SetRouter(engine, router.ThemeAssets{
 		DefaultBuildFS:   buildFS,
 		DefaultIndexPage: indexPage,
 		ClassicBuildFS:   classicBuildFS,
@@ -204,9 +208,49 @@ func main() {
 	// Log startup success message
 	common.LogStartupSuccess(startTime, port)
 
-	err = server.Run(":" + port)
-	if err != nil {
-		common.FatalLog("failed to start HTTP server: " + err.Error())
+	runHTTPServer(engine, port)
+}
+
+func runHTTPServer(engine *gin.Engine, port string) {
+	httpServer := &http.Server{
+		Addr:              ":" + port,
+		Handler:           engine,
+		ReadHeaderTimeout: 30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+
+	serverErrors := make(chan error, 1)
+	go func() {
+		err := httpServer.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErrors <- err
+			return
+		}
+		serverErrors <- nil
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
+
+	select {
+	case sig := <-quit:
+		common.SysLog("shutdown signal received: " + sig.String())
+		timeoutSeconds := common.GetEnvOrDefault("GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS", 30)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSeconds)*time.Second)
+		defer cancel()
+
+		if err := httpServer.Shutdown(ctx); err != nil {
+			common.SysError("HTTP server graceful shutdown failed: " + err.Error())
+			if closeErr := httpServer.Close(); closeErr != nil {
+				common.SysError("HTTP server forced close failed: " + closeErr.Error())
+			}
+		}
+		common.SysLog("HTTP server stopped")
+	case err := <-serverErrors:
+		if err != nil {
+			common.FatalLog("failed to start HTTP server: " + err.Error())
+		}
 	}
 }
 

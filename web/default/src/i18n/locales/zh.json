@@ -3865,7 +3865,7 @@
     "The public URL of your server, used for OAuth callbacks, webhooks, and other external integrations": "服务器的公开URL，用于OAuth回调、Webhook和其他外部集成",
     "The requested chat preset does not exist or has been removed.": "请求的聊天预设不存在或已被删除。",
     "The server will run the configured SELF_RESTART_COMMAND and may become temporarily unavailable.": "服务器将执行已配置的 SELF_RESTART_COMMAND，期间可能会暂时不可用。",
-    "The server will run the configured SELF_RESTART_COMMAND. Active requests and streaming responses may be interrupted; persisted data is safe only when database and data volumes are configured correctly.": "服务器将执行已配置的 SELF_RESTART_COMMAND。正在进行的请求和流式响应可能会中断；只有正确配置数据库和数据卷时，持久化数据才是安全的。",
+    "The server will run the configured SELF_RESTART_COMMAND. A single-instance deployment may return 502 briefly while the container or process is replaced. Existing requests will be given a graceful shutdown window, but seamless restarts require multiple instances behind a load balancer.": "服务器将执行已配置的 SELF_RESTART_COMMAND。单实例部署在容器或进程替换期间可能会短暂返回 502。已有请求会获得优雅关闭窗口，但要实现无感重启，需要在负载均衡后运行多个实例。",
     "The server will run the configured SELF_UPDATE_COMMAND. Continue only during a maintenance window.": "服务器将执行已配置的 SELF_UPDATE_COMMAND。请只在维护窗口内继续。",
     "The server will run the configured SELF_UPDATE_COMMAND. Run it during a maintenance window; requests may be interrupted when you restart into the new version.": "服务器将执行已配置的 SELF_UPDATE_COMMAND。请在维护窗口内执行；重启进入新版本时，请求可能会中断。",
     "The setup wizard will use this database during initialization.": "设置向导将在初始化过程中使用此数据库。",
