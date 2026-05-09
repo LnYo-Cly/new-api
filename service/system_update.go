@@ -25,7 +25,7 @@ const (
 	systemRestartCommandEnv       = "SELF_RESTART_COMMAND"
 	systemUpdateTimeoutEnv        = "SELF_UPDATE_TIMEOUT_SECONDS"
 	systemRestartTimeoutEnv       = "SELF_RESTART_TIMEOUT_SECONDS"
-	systemUpdateDefaultRepository = "Calcium-Ion/new-api"
+	systemUpdateDefaultRepository = "LnYo-Cly/new-api"
 	systemUpdateDefaultTimeout    = 300
 	systemRestartDefaultTimeout   = 30
 	systemCommandOutputLimit      = 4000
