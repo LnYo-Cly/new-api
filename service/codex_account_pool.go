@@ -367,6 +367,13 @@ func ClassifyCodexRelayFailure(err *types.NewAPIError) CodexRelayFailureAction {
 	}
 	message := strings.TrimSpace(err.Error())
 	statusCode := err.StatusCode
+	if isCodexRequestShapeError(err, message, statusCode) {
+		return CodexRelayFailureAction{
+			Retryable: false,
+			Status:    "",
+			Message:   message,
+		}
+	}
 	action := CodexRelayFailureAction{
 		Retryable: false,
 		Status:    CodexAccountStatusQueryFailed,
@@ -407,6 +414,30 @@ func ClassifyCodexRelayFailure(err *types.NewAPIError) CodexRelayFailureAction {
 		return action
 	}
 	return action
+}
+
+func isCodexRequestShapeError(err *types.NewAPIError, message string, statusCode int) bool {
+	if err == nil {
+		return false
+	}
+	lower := strings.ToLower(strings.TrimSpace(message))
+	if lower == "" {
+		return false
+	}
+	switch {
+	case strings.Contains(lower, "stream must be set to true"),
+		strings.Contains(lower, "stream must be true"),
+		strings.Contains(lower, "items are not persisted when `store` is set to false"),
+		strings.Contains(lower, "item with id 'rs_"),
+		strings.Contains(lower, "previous_response_not_found"),
+		strings.Contains(lower, "model is not supported when using codex with a chatgpt account"),
+		strings.Contains(lower, "not supported when using codex with a chatgpt account"),
+		strings.Contains(lower, "codex channel: /v1/chat/completions endpoint not supported"),
+		strings.Contains(lower, "codex channel: endpoint not supported"),
+		strings.Contains(lower, "client_version"):
+		return true
+	}
+	return false
 }
 
 func isCodexLimitMessage(message string) bool {

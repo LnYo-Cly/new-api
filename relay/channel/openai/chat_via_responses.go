@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"net/http"
@@ -88,6 +89,306 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 	return usage, nil
+}
+
+func OaiResponsesStreamToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+
+	defer service.CloseResponseBodyGracefully(resp)
+
+	chatId := helper.GetResponseID(c)
+	responseId := chatId
+	createdAt := int(time.Now().Unix())
+	model := info.UpstreamModelName
+
+	var (
+		completedResp *dto.OpenAIResponsesResponse
+		completed     bool
+		outputText    strings.Builder
+		reasoningText strings.Builder
+		usageText     strings.Builder
+		streamErr     *types.NewAPIError
+	)
+
+	toolCallIndexByID := make(map[string]int)
+	toolCallNameByID := make(map[string]string)
+	toolCallArgsByID := make(map[string]string)
+	toolCallCanonicalIDByItemID := make(map[string]string)
+	toolCallOrder := make([]string, 0)
+
+	ensureToolCall := func(callID string) {
+		if callID == "" {
+			return
+		}
+		if _, ok := toolCallIndexByID[callID]; ok {
+			return
+		}
+		toolCallIndexByID[callID] = len(toolCallOrder)
+		toolCallOrder = append(toolCallOrder, callID)
+	}
+
+	processData := func(data string) bool {
+		data = strings.TrimSpace(data)
+		if data == "" {
+			return true
+		}
+		if strings.HasPrefix(data, "[DONE]") {
+			return false
+		}
+
+		var streamResp dto.ResponsesStreamResponse
+		if err := common.UnmarshalJsonStr(data, &streamResp); err != nil {
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+			return false
+		}
+		if oaiErr := extractResponsesStreamOpenAIError(streamResp); oaiErr != nil {
+			streamErr = types.WithOpenAIError(*oaiErr, http.StatusBadGateway)
+			return false
+		}
+
+		switch streamResp.Type {
+		case "response.created":
+			if streamResp.Response != nil {
+				if streamResp.Response.ID != "" {
+					responseId = streamResp.Response.ID
+				}
+				if streamResp.Response.Model != "" {
+					model = streamResp.Response.Model
+				}
+				if streamResp.Response.CreatedAt != 0 {
+					createdAt = streamResp.Response.CreatedAt
+				}
+			}
+
+		case "response.reasoning_summary_text.delta":
+			if streamResp.Delta != "" {
+				reasoningText.WriteString(streamResp.Delta)
+				usageText.WriteString(streamResp.Delta)
+			}
+
+		case "response.output_text.delta":
+			if streamResp.Delta != "" {
+				outputText.WriteString(streamResp.Delta)
+				usageText.WriteString(streamResp.Delta)
+			}
+
+		case "response.output_item.added", "response.output_item.done":
+			if streamResp.Item == nil || streamResp.Item.Type != "function_call" {
+				break
+			}
+			itemID := strings.TrimSpace(streamResp.Item.ID)
+			callID := strings.TrimSpace(streamResp.Item.CallId)
+			if callID == "" {
+				callID = itemID
+			}
+			ensureToolCall(callID)
+			if itemID != "" && callID != "" {
+				toolCallCanonicalIDByItemID[itemID] = callID
+			}
+			if name := strings.TrimSpace(streamResp.Item.Name); name != "" {
+				toolCallNameByID[callID] = name
+			}
+			if args := streamResp.Item.ArgumentsString(); args != "" {
+				toolCallArgsByID[callID] = args
+				usageText.WriteString(args)
+			}
+
+		case "response.function_call_arguments.delta":
+			itemID := strings.TrimSpace(streamResp.ItemID)
+			callID := toolCallCanonicalIDByItemID[itemID]
+			if callID == "" {
+				callID = itemID
+			}
+			if callID == "" {
+				break
+			}
+			ensureToolCall(callID)
+			toolCallArgsByID[callID] += streamResp.Delta
+			usageText.WriteString(streamResp.Delta)
+
+		case "response.completed":
+			completed = true
+			if streamResp.Response != nil {
+				cp := *streamResp.Response
+				completedResp = &cp
+				if cp.ID != "" {
+					responseId = cp.ID
+				}
+				if cp.Model != "" {
+					model = cp.Model
+				}
+				if cp.CreatedAt != 0 {
+					createdAt = cp.CreatedAt
+				}
+			}
+
+		case "response.error", "response.failed":
+			if streamResp.Response != nil {
+				if oaiErr := streamResp.Response.GetOpenAIError(); oaiErr != nil && oaiErr.Type != "" {
+					streamErr = types.WithOpenAIError(*oaiErr, http.StatusBadGateway)
+					return false
+				}
+			}
+			streamErr = types.NewOpenAIError(fmt.Errorf("responses stream error: %s", streamResp.Type), types.ErrorCodeBadResponse, http.StatusBadGateway)
+			return false
+		}
+		return true
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, helper.InitialScannerBufferSize), helper.DefaultMaxScannerBufferSize)
+
+	dataLines := make([]string, 0, 1)
+	flushEvent := func() bool {
+		if len(dataLines) == 0 {
+			return true
+		}
+		data := strings.Join(dataLines, "\n")
+		dataLines = dataLines[:0]
+		return processData(data)
+	}
+
+	for scanner.Scan() {
+		select {
+		case <-c.Request.Context().Done():
+			return nil, types.NewOpenAIError(c.Request.Context().Err(), types.ErrorCodeBadResponse, http.StatusBadGateway)
+		default:
+		}
+
+		line := scanner.Text()
+		if line == "" {
+			if !flushEvent() {
+				break
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "data:") {
+			dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+			continue
+		}
+		if strings.HasPrefix(line, "[DONE]") {
+			break
+		}
+	}
+	if streamErr == nil && len(dataLines) > 0 {
+		flushEvent()
+	}
+	if streamErr != nil {
+		return nil, streamErr
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
+	}
+	if !completed {
+		return nil, types.NewOpenAIError(fmt.Errorf("responses stream disconnected before response.completed"), types.ErrorCodeBadResponse, http.StatusBadGateway)
+	}
+
+	responsesResp := buildResponsesResponseFromStream(completedResp, responseId, createdAt, model, outputText.String(), toolCallOrder, toolCallNameByID, toolCallArgsByID)
+	chatResp, usage, err := service.ResponsesResponseToChatCompletionsResponse(responsesResp, chatId)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	if reasoning := strings.TrimSpace(reasoningText.String()); reasoning != "" && len(chatResp.Choices) > 0 {
+		chatResp.Choices[0].Message.ReasoningContent = common.GetPointer(reasoningText.String())
+	}
+
+	if usage == nil || usage.TotalTokens == 0 {
+		text := usageText.String()
+		if text == "" {
+			text = service.ExtractOutputTextFromResponses(responsesResp)
+		}
+		usage = service.ResponseText2Usage(c, text, info.UpstreamModelName, info.GetEstimatePromptTokens())
+		chatResp.Usage = *usage
+	}
+
+	var responseBody []byte
+	switch info.RelayFormat {
+	case types.RelayFormatClaude:
+		claudeResp := service.ResponseOpenAI2Claude(chatResp, info)
+		responseBody, err = common.Marshal(claudeResp)
+	case types.RelayFormatGemini:
+		geminiResp := service.ResponseOpenAI2Gemini(chatResp, info)
+		responseBody, err = common.Marshal(geminiResp)
+	default:
+		responseBody, err = common.Marshal(chatResp)
+	}
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
+	}
+
+	c.Writer.Header().Set("Content-Type", "application/json")
+	service.IOCopyBytesGracefully(c, nil, responseBody)
+	return usage, nil
+}
+
+func buildResponsesResponseFromStream(
+	completedResp *dto.OpenAIResponsesResponse,
+	responseID string,
+	createdAt int,
+	model string,
+	outputText string,
+	toolCallOrder []string,
+	toolCallNameByID map[string]string,
+	toolCallArgsByID map[string]string,
+) *dto.OpenAIResponsesResponse {
+	if completedResp != nil {
+		if completedResp.ID == "" {
+			completedResp.ID = responseID
+		}
+		if completedResp.CreatedAt == 0 {
+			completedResp.CreatedAt = createdAt
+		}
+		if completedResp.Model == "" {
+			completedResp.Model = model
+		}
+	} else {
+		completedResp = &dto.OpenAIResponsesResponse{
+			ID:        responseID,
+			CreatedAt: createdAt,
+			Model:     model,
+		}
+	}
+
+	if outputText != "" {
+		completedResp.Output = []dto.ResponsesOutput{
+			{
+				Type: "message",
+				Role: "assistant",
+				Content: []dto.ResponsesOutputContent{
+					{
+						Type: "output_text",
+						Text: outputText,
+					},
+				},
+			},
+		}
+		return completedResp
+	}
+
+	if len(completedResp.Output) > 0 {
+		return completedResp
+	}
+
+	for _, callID := range toolCallOrder {
+		name := strings.TrimSpace(toolCallNameByID[callID])
+		if name == "" {
+			continue
+		}
+		args := strings.TrimSpace(toolCallArgsByID[callID])
+		if args == "" {
+			args = "{}"
+		}
+		completedResp.Output = append(completedResp.Output, dto.ResponsesOutput{
+			Type:      "function_call",
+			ID:        callID,
+			CallId:    callID,
+			Name:      name,
+			Arguments: []byte(args),
+		})
+	}
+	return completedResp
 }
 
 func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {

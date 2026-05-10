@@ -71,15 +71,22 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	}
 	adaptor.Init(info)
 	var requestBody io.Reader
+	forceUpstreamStream := info.ChannelType == appconstant.ChannelTypeCodex
+	savedIsStream := info.IsStream
+	if forceUpstreamStream {
+		info.IsStream = true
+	}
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
+			info.IsStream = savedIsStream
 			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 		}
 		requestBody = common.ReaderOnly(storage)
 	} else {
 		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
 		if err != nil {
+			info.IsStream = savedIsStream
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
@@ -98,6 +105,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		if len(info.ParamOverride) > 0 {
 			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
 			if err != nil {
+				info.IsStream = savedIsStream
 				return newAPIErrorFromParamOverride(err)
 			}
 		}
@@ -107,6 +115,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		}
 		requestBody = bytes.NewBuffer(jsonData)
 	}
+	info.IsStream = savedIsStream
 
 	var httpResp *http.Response
 	resp, err := adaptor.DoRequest(c, info, requestBody)

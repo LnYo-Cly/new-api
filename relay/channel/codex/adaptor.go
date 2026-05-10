@@ -55,7 +55,7 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	isCompact := info != nil && info.RelayMode == relayconstant.RelayModeResponsesCompact
 
-	if info != nil && info.ChannelSetting.SystemPrompt != "" {
+	if info != nil && info.ChannelMeta != nil && info.ChannelSetting.SystemPrompt != "" {
 		systemPrompt := info.ChannelSetting.SystemPrompt
 
 		if len(request.Instructions) == 0 {
@@ -101,6 +101,12 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	}
 	// codex: store must be false
 	request.Store = json.RawMessage("false")
+	request.Stream = common.GetPointer(true)
+	request.StreamOptions = nil
+	request.PreviousResponseID = ""
+	if info != nil {
+		info.IsStream = true
+	}
 	// rm max_output_tokens
 	request.MaxOutputTokens = nil
 	request.Temperature = nil
@@ -122,6 +128,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 	if info.IsStream {
 		return openai.OaiResponsesStreamHandler(c, info, resp)
+	}
+	if resp != nil && strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
+		return openai.OaiResponsesStreamToResponsesHandler(c, info, resp)
 	}
 	return openai.OaiResponsesHandler(c, info, resp)
 }

@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -68,6 +69,147 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		buildToolinfo.CallCount++
 	}
 	return &usage, nil
+}
+
+func OaiResponsesStreamToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+
+	defer service.CloseResponseBodyGracefully(resp)
+
+	var (
+		completedResp *dto.OpenAIResponsesResponse
+		completed     bool
+		responseText  strings.Builder
+		streamErr     *types.NewAPIError
+	)
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, helper.InitialScannerBufferSize), helper.DefaultMaxScannerBufferSize)
+
+	dataLines := make([]string, 0, 1)
+	processData := func(data string) bool {
+		data = strings.TrimSpace(data)
+		if data == "" {
+			return true
+		}
+		if strings.HasPrefix(data, "[DONE]") {
+			return false
+		}
+
+		var streamResponse dto.ResponsesStreamResponse
+		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+			return false
+		}
+		if oaiErr := extractResponsesStreamOpenAIError(streamResponse); oaiErr != nil {
+			streamErr = types.WithOpenAIError(*oaiErr, http.StatusBadGateway)
+			return false
+		}
+
+		switch streamResponse.Type {
+		case "response.output_text.delta":
+			responseText.WriteString(streamResponse.Delta)
+		case "response.completed":
+			completed = true
+			if streamResponse.Response != nil {
+				cp := *streamResponse.Response
+				completedResp = &cp
+			}
+		case "response.error", "response.failed":
+			if streamResponse.Response != nil {
+				if oaiErr := streamResponse.Response.GetOpenAIError(); oaiErr != nil && oaiErr.Type != "" {
+					streamErr = types.WithOpenAIError(*oaiErr, http.StatusBadGateway)
+					return false
+				}
+			}
+			streamErr = types.NewOpenAIError(fmt.Errorf("responses stream error: %s", streamResponse.Type), types.ErrorCodeBadResponse, http.StatusBadGateway)
+			return false
+		}
+		return true
+	}
+	flushEvent := func() bool {
+		if len(dataLines) == 0 {
+			return true
+		}
+		data := strings.Join(dataLines, "\n")
+		dataLines = dataLines[:0]
+		return processData(data)
+	}
+
+	for scanner.Scan() {
+		select {
+		case <-c.Request.Context().Done():
+			return nil, types.NewOpenAIError(c.Request.Context().Err(), types.ErrorCodeBadResponse, http.StatusBadGateway)
+		default:
+		}
+
+		line := scanner.Text()
+		if line == "" {
+			if !flushEvent() {
+				break
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "data:") {
+			dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+			continue
+		}
+		if strings.HasPrefix(line, "[DONE]") {
+			break
+		}
+	}
+	if streamErr == nil && len(dataLines) > 0 {
+		flushEvent()
+	}
+	if streamErr != nil {
+		return nil, streamErr
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
+	}
+	if !completed || completedResp == nil {
+		return nil, types.NewOpenAIError(fmt.Errorf("responses stream disconnected before response.completed"), types.ErrorCodeBadResponse, http.StatusBadGateway)
+	}
+
+	if completedResp.HasImageGenerationCall() {
+		c.Set("image_generation_call", true)
+		c.Set("image_generation_call_quality", completedResp.GetQuality())
+		c.Set("image_generation_call_size", completedResp.GetSize())
+	}
+
+	responseBody, err := common.Marshal(completedResp)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
+	}
+	c.Writer.Header().Set("Content-Type", "application/json")
+	service.IOCopyBytesGracefully(c, nil, responseBody)
+
+	usage := &dto.Usage{}
+	if completedResp.Usage != nil {
+		usage.PromptTokens = completedResp.Usage.InputTokens
+		usage.CompletionTokens = completedResp.Usage.OutputTokens
+		usage.TotalTokens = completedResp.Usage.TotalTokens
+		if completedResp.Usage.InputTokensDetails != nil {
+			usage.PromptTokensDetails.CachedTokens = completedResp.Usage.InputTokensDetails.CachedTokens
+		}
+	}
+	if usage.TotalTokens == 0 && responseText.Len() > 0 {
+		usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
+	if info == nil || info.ResponsesUsageInfo == nil || info.ResponsesUsageInfo.BuiltInTools == nil {
+		return usage, nil
+	}
+	for _, tool := range completedResp.Tools {
+		buildToolinfo, ok := info.ResponsesUsageInfo.BuiltInTools[common.Interface2String(tool["type"])]
+		if !ok || buildToolinfo == nil {
+			logger.LogError(c, fmt.Sprintf("BuiltInTools not found for tool type: %v", tool["type"]))
+			continue
+		}
+		buildToolinfo.CallCount++
+	}
+	return usage, nil
 }
 
 func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
