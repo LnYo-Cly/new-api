@@ -125,18 +125,13 @@ function SubscriptionProgressCard({
 }
 
 function WalletUsageCard({
-  used,
   remaining,
   t,
 }: {
-  used: number
   remaining: number
   t: (key: string, options?: Record<string, unknown>) => string
 }) {
-  const total = used + remaining
-  const percent = getUsagePercent(used, total)
-
-  if (total <= 0) {
+  if (remaining <= 0) {
     return (
       <StatusBadge label={t('No Quota')} variant='neutral' copyable={false} />
     )
@@ -144,20 +139,11 @@ function WalletUsageCard({
 
   return (
     <div className='space-y-2 rounded-md border bg-background px-2.5 py-2'>
-      <div className='flex items-center justify-between gap-3'>
-        <div className='text-sm font-medium tabular-nums'>
-          {formatQuota(remaining)}
-        </div>
-        <div className='text-muted-foreground text-xs'>
-          {t('Used:')} {formatQuota(used)}
-        </div>
+      <div className='text-sm font-medium tabular-nums'>
+        {formatQuota(remaining)}
       </div>
-
-      <UsageBar value={percent} className='bg-emerald-500/15' />
-
-      <div className='text-muted-foreground flex items-center justify-between text-xs'>
-        <span>{t('Wallet Balance')}</span>
-        <span>{formatQuota(total)}</span>
+      <div className='text-muted-foreground text-xs'>
+        {t('Wallet Balance')}
       </div>
     </div>
   )
@@ -170,12 +156,11 @@ function TotalUsageCell({
   user: User
   t: (key: string, options?: Record<string, unknown>) => string
 }) {
-  const walletUsed = Number(user.used_quota || 0)
+  const totalUsed = Number(user.used_quota || 0)
   const subscriptionUsed = (user.active_subscriptions || []).reduce(
     (sum, subscription) => sum + Number(subscription.amount_used || 0),
     0
   )
-  const totalUsed = walletUsed + subscriptionUsed
 
   return (
     <Tooltip>
@@ -186,9 +171,6 @@ function TotalUsageCell({
           {formatQuota(totalUsed)}
         </div>
         <div className='text-muted-foreground text-xs'>
-          {t('Wallet')}: {formatQuota(walletUsed)}
-        </div>
-        <div className='text-muted-foreground text-xs'>
           {t('Subscription')}: {formatQuota(subscriptionUsed)}
         </div>
       </TooltipTrigger>
@@ -196,9 +178,6 @@ function TotalUsageCell({
         <div className='space-y-1 text-xs'>
           <div>
             {t('Total Used')}: {formatQuota(totalUsed)}
-          </div>
-          <div>
-            {t('Wallet')}: {formatQuota(walletUsed)}
           </div>
           <div>
             {t('Subscription')}: {formatQuota(subscriptionUsed)}
@@ -394,9 +373,8 @@ export function useUsersColumns(): ColumnDef<User>[] {
       ),
       cell: ({ row }) => {
         const user = row.original
-        const used = user.used_quota
         const remaining = user.quota
-        return <WalletUsageCard used={used} remaining={remaining} t={t} />
+        return <WalletUsageCard remaining={remaining} t={t} />
       },
       meta: { label: t('Balance') },
     },
