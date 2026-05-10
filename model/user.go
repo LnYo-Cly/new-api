@@ -52,6 +52,7 @@ type User struct {
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
 	CreatedAt        int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt      int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	ActiveSubscriptions []UserActiveSubscriptionSummary `json:"active_subscriptions,omitempty" gorm:"-"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -221,6 +222,10 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 		return nil, 0, err
 	}
 
+	if err = AttachActiveSubscriptionSummaries(users); err != nil {
+		return nil, 0, err
+	}
+
 	return users, total, nil
 }
 
@@ -285,6 +290,10 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 
 	// 提交事务
 	if err = tx.Commit().Error; err != nil {
+		return nil, 0, err
+	}
+
+	if err = AttachActiveSubscriptionSummaries(users); err != nil {
 		return nil, 0, err
 	}
 

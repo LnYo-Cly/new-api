@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -269,6 +270,19 @@ func (s *UserSubscription) BeforeUpdate(tx *gorm.DB) error {
 
 type SubscriptionSummary struct {
 	Subscription *UserSubscription `json:"subscription"`
+}
+
+type UserActiveSubscriptionSummary struct {
+	SubscriptionId           int    `json:"subscription_id"`
+	PlanId                   int    `json:"plan_id"`
+	PlanTitle                string `json:"plan_title"`
+	QuotaResetPeriod         string `json:"quota_reset_period"`
+	QuotaResetCustomSeconds  int64  `json:"quota_reset_custom_seconds"`
+	AmountTotal              int64  `json:"amount_total"`
+	AmountUsed               int64  `json:"amount_used"`
+	RemainingQuota           int64  `json:"remaining_quota"`
+	EndTime                  int64  `json:"end_time"`
+	NextResetTime            int64  `json:"next_reset_time"`
 }
 
 type AdminAdjustUserSubscriptionTimeResult struct {
@@ -780,6 +794,128 @@ func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
 		})
 	}
 	return result
+}
+
+func subscriptionResetPeriodSortPriority(period string) int {
+	switch NormalizeResetPeriod(period) {
+	case SubscriptionResetDaily:
+		return 1
+	case SubscriptionResetWeekly:
+		return 2
+	case SubscriptionResetMonthly:
+		return 3
+	case SubscriptionResetCustom:
+		return 4
+	default:
+		return 5
+	}
+}
+
+func AttachActiveSubscriptionSummaries(users []*User) error {
+	if len(users) == 0 {
+		return nil
+	}
+
+	userIDs := make([]int, 0, len(users))
+	for _, user := range users {
+		if user == nil || user.Id <= 0 {
+			continue
+		}
+		user.ActiveSubscriptions = nil
+		userIDs = append(userIDs, user.Id)
+	}
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	now := common.GetTimestamp()
+	var subs []UserSubscription
+	if err := DB.Where("user_id IN ? AND status = ? AND end_time > ?", userIDs, "active", now).
+		Order("user_id asc, end_time asc, id asc").
+		Find(&subs).Error; err != nil {
+		return err
+	}
+	if len(subs) == 0 {
+		return nil
+	}
+
+	planIDs := make([]int, 0, len(subs))
+	planIDSet := make(map[int]struct{}, len(subs))
+	for _, sub := range subs {
+		if sub.PlanId <= 0 {
+			continue
+		}
+		if _, ok := planIDSet[sub.PlanId]; ok {
+			continue
+		}
+		planIDSet[sub.PlanId] = struct{}{}
+		planIDs = append(planIDs, sub.PlanId)
+	}
+
+	planMap := make(map[int]SubscriptionPlan, len(planIDs))
+	if len(planIDs) > 0 {
+		var plans []SubscriptionPlan
+		if err := DB.Where("id IN ?", planIDs).Find(&plans).Error; err != nil {
+			return err
+		}
+		for _, plan := range plans {
+			planMap[plan.Id] = plan
+		}
+	}
+
+	summaryMap := make(map[int][]UserActiveSubscriptionSummary, len(userIDs))
+	for _, sub := range subs {
+		plan := planMap[sub.PlanId]
+		remainingQuota := int64(0)
+		if sub.AmountTotal > 0 {
+			remainingQuota = sub.AmountTotal - sub.AmountUsed
+			if remainingQuota < 0 {
+				remainingQuota = 0
+			}
+		}
+		summaryMap[sub.UserId] = append(summaryMap[sub.UserId], UserActiveSubscriptionSummary{
+			SubscriptionId:          sub.Id,
+			PlanId:                  sub.PlanId,
+			PlanTitle:               plan.Title,
+			QuotaResetPeriod:        NormalizeResetPeriod(plan.QuotaResetPeriod),
+			QuotaResetCustomSeconds: plan.QuotaResetCustomSeconds,
+			AmountTotal:             sub.AmountTotal,
+			AmountUsed:              sub.AmountUsed,
+			RemainingQuota:          remainingQuota,
+			EndTime:                 sub.EndTime,
+			NextResetTime:           sub.NextResetTime,
+		})
+	}
+
+	for _, user := range users {
+		if user == nil {
+			continue
+		}
+		summaries := summaryMap[user.Id]
+		if len(summaries) == 0 {
+			user.ActiveSubscriptions = nil
+			continue
+		}
+		sort.SliceStable(summaries, func(i, j int) bool {
+			left := summaries[i]
+			right := summaries[j]
+			leftPriority := subscriptionResetPeriodSortPriority(left.QuotaResetPeriod)
+			rightPriority := subscriptionResetPeriodSortPriority(right.QuotaResetPeriod)
+			if leftPriority != rightPriority {
+				return leftPriority < rightPriority
+			}
+			if left.NextResetTime > 0 && right.NextResetTime > 0 && left.NextResetTime != right.NextResetTime {
+				return left.NextResetTime < right.NextResetTime
+			}
+			if left.EndTime != right.EndTime {
+				return left.EndTime < right.EndTime
+			}
+			return left.SubscriptionId < right.SubscriptionId
+		})
+		user.ActiveSubscriptions = summaries
+	}
+
+	return nil
 }
 
 func escapeSubscriptionLikeKeyword(keyword string) string {

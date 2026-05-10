@@ -1,9 +1,7 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { formatQuota, formatTimestamp } from '@/lib/format'
-import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Progress } from '@/components/ui/progress'
 import {
   Tooltip,
   TooltipContent,
@@ -14,13 +12,35 @@ import { GroupBadge } from '@/components/group-badge'
 import { LongText } from '@/components/long-text'
 import { StatusBadge, dotColorMap } from '@/components/status-badge'
 import { USER_STATUSES, USER_ROLES, isUserDeleted } from '../constants'
-import { type User } from '../types'
+import { type User, type UserActiveSubscription } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
-function getQuotaProgressColor(percentage: number): string {
-  if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-rose-500'
-  if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-amber-500'
-  return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
+function getSubscriptionPeriodLabel(
+  subscription: UserActiveSubscription,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
+  switch (subscription.quota_reset_period) {
+    case 'daily':
+      return t('Daily')
+    case 'weekly':
+      return t('Weekly')
+    case 'monthly':
+      return t('Monthly')
+    case 'custom':
+      return t('Custom')
+    default:
+      return t('Subscription')
+  }
+}
+
+function renderSubscriptionQuota(
+  subscription: UserActiveSubscription,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
+  if (subscription.amount_total <= 0) {
+    return t('Unlimited')
+  }
+  return `${formatQuota(subscription.remaining_quota)} / ${formatQuota(subscription.amount_total)}`
 }
 
 export function useUsersColumns(): ColumnDef<User>[] {
@@ -141,19 +161,105 @@ export function useUsersColumns(): ColumnDef<User>[] {
       meta: { label: t('Status'), mobileBadge: true },
     },
     {
-      id: 'quota',
+      id: 'subscription_balance',
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={t('Subscription Balance')}
+        />
+      ),
+      cell: ({ row }) => {
+        const subscriptions = row.original.active_subscriptions || []
+
+        if (subscriptions.length === 0) {
+          return (
+            <StatusBadge
+              label={t('No Active Subscription')}
+              variant='neutral'
+              copyable={false}
+            />
+          )
+        }
+
+        return (
+          <div className='min-w-[240px] space-y-2'>
+            {subscriptions.map((subscription) => (
+              <Tooltip key={subscription.subscription_id}>
+                <TooltipTrigger
+                  render={
+                    <div className='hover:bg-muted/40 cursor-help rounded-md border px-2.5 py-2 transition-colors' />
+                  }
+                >
+                  <div className='flex items-start justify-between gap-3'>
+                    <div className='min-w-0'>
+                      <div className='text-sm font-medium'>
+                        {getSubscriptionPeriodLabel(subscription, t)}
+                      </div>
+                      {subscription.plan_title && (
+                        <div className='text-muted-foreground truncate text-xs'>
+                          {subscription.plan_title}
+                        </div>
+                      )}
+                    </div>
+                    <div className='text-right text-sm font-medium tabular-nums'>
+                      {renderSubscriptionQuota(subscription, t)}
+                    </div>
+                  </div>
+                  <div className='text-muted-foreground mt-1.5 space-y-1 text-xs'>
+                    <div>
+                      {t('Next reset')}:{' '}
+                      {subscription.next_reset_time
+                        ? formatTimestamp(subscription.next_reset_time)
+                        : t('No Reset')}
+                    </div>
+                    <div>
+                      {t('Expiry Time')}:{' '}
+                      {formatTimestamp(subscription.end_time)}
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className='space-y-1 text-xs'>
+                    <div>
+                      {t('Plan')}: {subscription.plan_title || `#${subscription.plan_id}`}
+                    </div>
+                    <div>
+                      {t('Used:')} {formatQuota(subscription.amount_used)}
+                    </div>
+                    <div>
+                      {t('Remaining:')}{' '}
+                      {subscription.amount_total > 0
+                        ? formatQuota(subscription.remaining_quota)
+                        : t('Unlimited')}
+                    </div>
+                    <div>
+                      {t('Total:')}{' '}
+                      {subscription.amount_total > 0
+                        ? formatQuota(subscription.amount_total)
+                        : t('Unlimited')}
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
+        )
+      },
+      enableSorting: false,
+      meta: { label: t('Subscription Balance') },
+    },
+    {
+      id: 'balance',
       accessorKey: 'quota',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Quota')} />
+        <DataTableColumnHeader column={column} title={t('Balance')} />
       ),
       cell: ({ row }) => {
         const user = row.original
         const used = user.used_quota
         const remaining = user.quota
-        const total = used + remaining
-        const percentage = total > 0 ? (remaining / total) * 100 : 0
 
-        if (total === 0) {
+        if (remaining === 0 && used === 0) {
           return (
             <StatusBadge
               label={t('No Quota')}
@@ -166,41 +272,31 @@ export function useUsersColumns(): ColumnDef<User>[] {
         return (
           <Tooltip>
             <TooltipTrigger
-              render={<div className='w-[150px] cursor-help space-y-1' />}
+              render={<div className='w-[170px] cursor-help space-y-1' />}
             >
-              <div className='flex justify-between text-xs'>
-                <span className='font-medium tabular-nums'>
+              <div className='space-y-1'>
+                <div className='text-sm font-medium tabular-nums'>
                   {formatQuota(remaining)}
-                </span>
-                <span className='text-muted-foreground tabular-nums'>
-                  {formatQuota(total)}
-                </span>
+                </div>
+                <div className='text-muted-foreground text-xs'>
+                  {t('Used:')} {formatQuota(used)}
+                </div>
               </div>
-              <Progress
-                value={percentage}
-                className={cn('h-1.5', getQuotaProgressColor(percentage))}
-              />
             </TooltipTrigger>
             <TooltipContent>
               <div className='space-y-1 text-xs'>
                 <div>
+                  {t('Balance')}: {formatQuota(remaining)}
+                </div>
+                <div>
                   {t('Used:')} {formatQuota(used)}
-                </div>
-                <div>
-                  {t('Remaining:')} {formatQuota(remaining)}
-                </div>
-                <div>
-                  {t('Total:')} {formatQuota(total)}
-                </div>
-                <div>
-                  {t('Percentage:')} {percentage.toFixed(1)}%
                 </div>
               </div>
             </TooltipContent>
           </Tooltip>
         )
       },
-      meta: { label: t('Quota') },
+      meta: { label: t('Balance') },
     },
     {
       accessorKey: 'group',
