@@ -28,7 +28,15 @@ import {
   Space,
   Card,
 } from '@douyinfe/semi-ui';
-import { API, showError, showSuccess, timestamp2string } from '../../helpers';
+import { IconDownload, IconExternalOpen } from '@douyinfe/semi-icons';
+import { Power } from 'lucide-react';
+import {
+  API,
+  isRoot,
+  showError,
+  showSuccess,
+  timestamp2string,
+} from '../../helpers';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../context/Status';
@@ -36,9 +44,17 @@ import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 
 const LEGAL_USER_AGREEMENT_KEY = 'legal.user_agreement';
 const LEGAL_PRIVACY_POLICY_KEY = 'legal.privacy_policy';
+const RESTART_RECOVERY_INTERVAL_MS = 2000;
+const RESTART_RECOVERY_MAX_ATTEMPTS = 45;
+
+const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const getApiErrorMessage = (error, fallback) =>
+  error?.response?.data?.message || error?.message || fallback;
 
 const OtherSetting = () => {
   const { t } = useTranslation();
+  const isRootUser = isRoot();
   let [inputs, setInputs] = useState({
     Notice: '',
     [LEGAL_USER_AGREEMENT_KEY]: '',
@@ -52,10 +68,21 @@ const OtherSetting = () => {
   let [loading, setLoading] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [statusState, statusDispatch] = useContext(StatusContext);
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [restartLoading, setRestartLoading] = useState(false);
+  const [recoveryChecking, setRecoveryChecking] = useState(false);
+  const [operationStatus, setOperationStatus] = useState(null);
+  const [commandResult, setCommandResult] = useState(null);
   const [updateData, setUpdateData] = useState({
     tag_name: '',
     content: '',
     html_url: '',
+    current_version: '',
+    latest_version: '',
+    has_update: false,
+    self_update_enabled: false,
+    update_command_configured: false,
+    restart_command_configured: false,
   });
 
   const updateOption = async (key, value) => {
@@ -248,13 +275,32 @@ const OtherSetting = () => {
 
       if (!data.has_update) {
         showSuccess(`已是最新版本：${data.current_version}`);
+        setUpdateData((prev) => ({
+          ...prev,
+          current_version: data.current_version || prev.current_version,
+          latest_version: data.latest_version || prev.latest_version,
+          has_update: false,
+          self_update_enabled: !!data.self_update_enabled,
+          update_command_configured: !!data.update_command_configured,
+          restart_command_configured: !!data.restart_command_configured,
+        }));
+        setOperationStatus(data.operation_status || null);
+        setCommandResult(null);
       } else {
         const release = data.release_info || {};
         setUpdateData({
           tag_name: release.tag_name || data.latest_version,
           content: marked.parse(release.body || ''),
           html_url: release.html_url || '',
+          current_version: data.current_version || '',
+          latest_version: data.latest_version || '',
+          has_update: !!data.has_update,
+          self_update_enabled: !!data.self_update_enabled,
+          update_command_configured: !!data.update_command_configured,
+          restart_command_configured: !!data.restart_command_configured,
         });
+        setOperationStatus(data.operation_status || null);
+        setCommandResult(null);
         setShowUpdateModal(true);
       }
     } catch (error) {
@@ -266,6 +312,136 @@ const OtherSetting = () => {
         CheckUpdate: false,
       }));
     }
+  };
+
+  const refreshOperationStatus = async () => {
+    try {
+      const res = await API.get('/api/system/update/status', {
+        disableDuplicate: true,
+        skipErrorHandler: true,
+      });
+      const { success, data } = res.data;
+      if (success) {
+        setOperationStatus(data || null);
+      }
+    } catch (error) {
+      console.error('刷新更新状态失败', error);
+    }
+  };
+
+  const waitForServiceRecovery = async () => {
+    for (let attempt = 0; attempt < RESTART_RECOVERY_MAX_ATTEMPTS; attempt++) {
+      await sleep(RESTART_RECOVERY_INTERVAL_MS);
+      try {
+        const res = await API.get('/api/status', {
+          disableDuplicate: true,
+          skipErrorHandler: true,
+        });
+        if (res.data?.success) {
+          return true;
+        }
+      } catch {
+        // Keep polling until the service responds or the recovery window ends.
+      }
+    }
+    return false;
+  };
+
+  const applySystemUpdate = async () => {
+    try {
+      setUpdateLoading(true);
+      const operation_id = `update-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const res = await API.post(
+        '/api/system/update/apply',
+        { operation_id },
+        { skipErrorHandler: true },
+      );
+      const { success, message, data } = res.data;
+      if (!success || !data) {
+        showError(message || t('应用更新失败，请稍后再试'));
+        return;
+      }
+      setCommandResult(data);
+      setOperationStatus({
+        running: false,
+        action: 'update',
+        operation_id: data.operation_id || operation_id,
+      });
+      showSuccess(data.message || t('更新命令已执行'));
+      await refreshOperationStatus();
+      if (data.need_restart) {
+        showSuccess(t('更新完成后需要重启服务'));
+      }
+    } catch (error) {
+      console.error('应用更新失败', error);
+      showError(getApiErrorMessage(error, t('应用更新失败，请稍后再试')));
+    } finally {
+      setUpdateLoading(false);
+    }
+  };
+
+  const restartSystem = async () => {
+    try {
+      setRestartLoading(true);
+      const operation_id = `restart-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const res = await API.post(
+        '/api/system/update/restart',
+        { operation_id },
+        { skipErrorHandler: true },
+      );
+      const { success, message, data } = res.data;
+      if (!success || !data) {
+        showError(message || t('重启服务失败，请稍后再试'));
+        return;
+      }
+      setCommandResult(data);
+      setOperationStatus({
+        running: false,
+        action: 'restart',
+        operation_id: data.operation_id || operation_id,
+      });
+      showSuccess(data.message || t('重启命令已提交'));
+      await refreshOperationStatus();
+      showSuccess(t('重启命令已提交，正在等待服务恢复'));
+      setRecoveryChecking(true);
+      const recovered = await waitForServiceRecovery();
+      if (recovered) {
+        showSuccess(t('服务已恢复在线'));
+        await checkUpdate();
+      } else {
+        showError(t('重启命令已提交，但服务未在超时时间内恢复响应'));
+      }
+    } catch (error) {
+      console.error('重启服务失败', error);
+      showError(getApiErrorMessage(error, t('重启服务失败，请稍后再试')));
+    } finally {
+      setRestartLoading(false);
+      setRecoveryChecking(false);
+    }
+  };
+
+  const confirmApplySystemUpdate = () => {
+    Modal.confirm({
+      title: t('确认应用系统更新？'),
+      content: t(
+        '服务器将执行配置的 SELF_UPDATE_COMMAND。请在维护窗口执行；重启到新版本时，请求可能会短暂中断。',
+      ),
+      okText: t('应用更新'),
+      cancelText: t('取消'),
+      onOk: applySystemUpdate,
+    });
+  };
+
+  const confirmRestartSystem = () => {
+    Modal.confirm({
+      title: t('确认重启服务？'),
+      content: t(
+        '服务器将执行配置的 SELF_RESTART_COMMAND。单实例部署在容器或进程替换期间可能短暂返回 502；无感重启需要多实例和负载均衡。',
+      ),
+      okText: t('重启服务'),
+      cancelText: t('取消'),
+      onOk: restartSystem,
+    });
   };
 
   const switchToDefaultFrontend = () => {
@@ -340,6 +516,19 @@ const OtherSetting = () => {
     return statusState.status ? timestamp2string(timestamp) : '';
   };
 
+  const operationRunning = !!operationStatus?.running;
+  const updateActionsDisabled =
+    operationRunning || updateLoading || restartLoading || recoveryChecking;
+  const canApplyUpdate =
+    updateData.self_update_enabled &&
+    updateData.update_command_configured &&
+    updateData.has_update &&
+    !updateActionsDisabled;
+  const canRestart =
+    updateData.self_update_enabled &&
+    updateData.restart_command_configured &&
+    !updateActionsDisabled;
+
   return (
     <Row>
       <Col
@@ -369,6 +558,26 @@ const OtherSetting = () => {
                     >
                       {t('检查更新')}
                     </Button>
+                    {isRootUser && (
+                      <>
+                        <Button
+                          icon={<IconDownload />}
+                          onClick={confirmApplySystemUpdate}
+                          loading={updateLoading}
+                          disabled={!canApplyUpdate}
+                        >
+                          {t('应用更新')}
+                        </Button>
+                        <Button
+                          icon={<Power size={14} />}
+                          onClick={confirmRestartSystem}
+                          loading={restartLoading || recoveryChecking}
+                          disabled={!canRestart}
+                        >
+                          {t('重启服务')}
+                        </Button>
+                      </>
+                    )}
                     <Button
                       onClick={switchToDefaultFrontend}
                       loading={loadingInput['FrontendTheme']}
@@ -385,6 +594,53 @@ const OtherSetting = () => {
                   </Text>
                 </Col>
               </Row>
+              {isRootUser && operationRunning && (
+                <Row style={{ marginTop: 8 }}>
+                  <Col span={24}>
+                    <Text type='tertiary'>
+                      {t('当前有系统 {{action}} 操作正在执行', {
+                        action:
+                          operationStatus.action === 'restart'
+                            ? t('重启操作')
+                            : t('更新操作'),
+                      })}
+                    </Text>
+                  </Col>
+                </Row>
+              )}
+              {isRootUser && recoveryChecking && (
+                <Row style={{ marginTop: 8 }}>
+                  <Col span={24}>
+                    <Text type='tertiary'>{t('正在等待服务恢复在线')}</Text>
+                  </Col>
+                </Row>
+              )}
+              {isRootUser &&
+                updateData.current_version &&
+                !updateData.self_update_enabled && (
+                  <Banner
+                    fullMode={false}
+                    type='warning'
+                    description={t(
+                      '自更新未启用。请设置 SELF_UPDATE_ENABLED=true 并配置更新命令后再执行这些操作。',
+                    )}
+                    closeIcon={null}
+                    style={{ marginTop: 12 }}
+                  />
+                )}
+              {isRootUser &&
+                updateData.self_update_enabled &&
+                updateData.current_version &&
+                (!updateData.update_command_configured ||
+                  !updateData.restart_command_configured) && (
+                  <Banner
+                    fullMode={false}
+                    type='warning'
+                    description={t('自更新已启用，但部分命令尚未配置。')}
+                    closeIcon={null}
+                    style={{ marginTop: 12 }}
+                  />
+                )}
             </Form.Section>
           </Card>
         </Form>
@@ -535,6 +791,7 @@ const OtherSetting = () => {
         title={t('新版本') + '：' + updateData.tag_name}
         visible={showUpdateModal}
         onCancel={() => setShowUpdateModal(false)}
+        size='large'
         footer={[
           <Button
             key='details'
@@ -544,10 +801,87 @@ const OtherSetting = () => {
               openGitHubRelease();
             }}
           >
+            <IconExternalOpen />
             {t('详情')}
           </Button>,
         ]}
       >
+        <div style={{ marginBottom: 16 }}>
+          <Space wrap>
+            <Text>
+              {t('当前版本')}：{updateData.current_version || t('未知')}
+            </Text>
+            <Text>
+              {t('最新版本')}：{updateData.latest_version || t('未知')}
+            </Text>
+            {operationStatus?.running && (
+              <Text>
+                {t('当前有系统 {{action}} 操作正在执行', {
+                  action:
+                    operationStatus.action === 'restart'
+                      ? t('重启操作')
+                      : t('更新操作'),
+                })}
+              </Text>
+            )}
+          </Space>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            marginBottom: 16,
+            flexWrap: 'wrap',
+          }}
+        >
+          {isRootUser && (
+            <>
+              <Button
+                icon={<IconDownload />}
+                onClick={confirmApplySystemUpdate}
+                loading={updateLoading}
+                disabled={!canApplyUpdate}
+              >
+                {t('应用更新')}
+              </Button>
+              <Button
+                icon={<Power size={14} />}
+                onClick={confirmRestartSystem}
+                loading={restartLoading || recoveryChecking}
+                disabled={!canRestart}
+              >
+                {t('重启服务')}
+              </Button>
+            </>
+          )}
+        </div>
+        {commandResult?.message && (
+          <Banner
+            fullMode={false}
+            type='success'
+            description={`${commandResult.message}${commandResult.need_restart ? '，' + t('需要重启服务') : ''}`}
+            closeIcon={null}
+            style={{ marginBottom: 16 }}
+          />
+        )}
+        {commandResult?.output && (
+          <div style={{ marginBottom: 16 }}>
+            <Text>{t('命令输出')}</Text>
+            <pre
+              style={{
+                maxHeight: 240,
+                overflow: 'auto',
+                whiteSpace: 'pre-wrap',
+                marginTop: 8,
+                padding: 12,
+                border: '1px solid var(--semi-color-border)',
+                borderRadius: 6,
+              }}
+            >
+              {commandResult.output}
+            </pre>
+          </div>
+        )}
         <div dangerouslySetInnerHTML={{ __html: updateData.content }}></div>
       </Modal>
     </Row>
