@@ -36,6 +36,8 @@ const (
 var (
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
 	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
+	ErrNoActiveSubscription           = errors.New("no active subscription")
+	ErrSubscriptionQuotaInsufficient  = errors.New("subscription quota insufficient")
 )
 
 const (
@@ -794,6 +796,60 @@ func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
 		})
 	}
 	return result
+}
+
+func BuildUserSubscriptionDebugSummary(userId int) string {
+	if userId <= 0 {
+		return "invalid user"
+	}
+
+	type subDebugRow struct {
+		Id            int
+		PlanId        int
+		AmountTotal   int64
+		AmountUsed    int64
+		StartTime     int64
+		EndTime       int64
+		Status        string
+		NextResetTime int64
+	}
+
+	var subs []subDebugRow
+	if err := DB.Model(&UserSubscription{}).
+		Where("user_id = ?", userId).
+		Order("id desc").
+		Limit(3).
+		Find(&subs).Error; err != nil {
+		return "query failed: " + err.Error()
+	}
+	if len(subs) == 0 {
+		return "no subscriptions"
+	}
+
+	now := GetDBTimestamp()
+	parts := make([]string, 0, len(subs))
+	for _, sub := range subs {
+		remaining := int64(0)
+		if sub.AmountTotal > 0 {
+			remaining = sub.AmountTotal - sub.AmountUsed
+			if remaining < 0 {
+				remaining = 0
+			}
+		}
+		parts = append(parts, fmt.Sprintf(
+			"sub#%d(plan=%d,status=%s,active=%t,used=%d,total=%d,remain=%d,end=%d,next_reset=%d)",
+			sub.Id,
+			sub.PlanId,
+			sub.Status,
+			sub.Status == "active" && sub.EndTime > now,
+			sub.AmountUsed,
+			sub.AmountTotal,
+			remaining,
+			sub.EndTime,
+			sub.NextResetTime,
+		))
+	}
+	return strings.Join(parts, "; ")
 }
 
 func subscriptionResetPeriodSortPriority(period string) int {
@@ -1763,10 +1819,10 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
 			Order("end_time asc, id asc").
 			Find(&subs).Error; err != nil {
-			return errors.New("no active subscription")
+			return fmt.Errorf("%w: %v", ErrNoActiveSubscription, err)
 		}
 		if len(subs) == 0 {
-			return errors.New("no active subscription")
+			return ErrNoActiveSubscription
 		}
 		for _, candidate := range subs {
 			sub := candidate
@@ -1817,7 +1873,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountUsedAfter = sub.AmountUsed
 			return nil
 		}
-		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
+		return fmt.Errorf("%w, need=%d", ErrSubscriptionQuotaInsufficient, amount)
 	})
 	if err != nil {
 		return nil, err

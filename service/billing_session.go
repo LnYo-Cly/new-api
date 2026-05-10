@@ -398,6 +398,22 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		return session, nil
 	}
 
+	logSubscriptionFallback := func(stage string, subErr *types.NewAPIError) {
+		if subErr == nil {
+			return
+		}
+		logger.LogWarn(c, fmt.Sprintf(
+			"subscription billing fallback (%s): user=%d request=%s model=%s quota=%s err=%s snapshot=%s",
+			stage,
+			relayInfo.UserId,
+			relayInfo.RequestId,
+			relayInfo.OriginModelName,
+			logger.FormatQuota(preConsumedQuota),
+			subErr.Error(),
+			model.BuildUserSubscriptionDebugSummary(relayInfo.UserId),
+		))
+	}
+
 	switch pref {
 	case "subscription_only":
 		return trySubscription()
@@ -420,12 +436,40 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 			return nil, types.NewError(subCheckErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}
 		if !hasSub {
-			return tryWallet()
+			session, walletErr := tryWallet()
+			if walletErr != nil && walletErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
+				logger.LogWarn(c, fmt.Sprintf(
+					"subscription billing skipped by active-subscription check: user=%d request=%s model=%s quota=%s snapshot=%s wallet_err=%s",
+					relayInfo.UserId,
+					relayInfo.RequestId,
+					relayInfo.OriginModelName,
+					logger.FormatQuota(preConsumedQuota),
+					model.BuildUserSubscriptionDebugSummary(relayInfo.UserId),
+					walletErr.Error(),
+				))
+			}
+			return session, walletErr
 		}
 		session, apiErr := trySubscription()
 		if apiErr != nil {
 			if apiErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
-				return tryWallet()
+				logSubscriptionFallback("subscription_first", apiErr)
+				walletSession, walletErr := tryWallet()
+				if walletErr != nil && walletErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
+					combinedErr := fmt.Errorf(
+						"订阅预扣失败: %s; 钱包预扣也失败: %s",
+						apiErr.Error(),
+						walletErr.Error(),
+					)
+					return nil, types.NewErrorWithStatusCode(
+						combinedErr,
+						types.ErrorCodeInsufficientUserQuota,
+						http.StatusForbidden,
+						types.ErrOptionWithSkipRetry(),
+						types.ErrOptionWithNoRecordErrorLog(),
+					)
+				}
+				return walletSession, walletErr
 			}
 			return nil, apiErr
 		}
