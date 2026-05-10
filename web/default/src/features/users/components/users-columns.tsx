@@ -41,7 +41,172 @@ function renderSubscriptionQuota(
   if (subscription.amount_total <= 0) {
     return t('Unlimited')
   }
-  return `${formatQuota(subscription.remaining_quota)} / ${formatQuota(subscription.amount_total)}`
+  return `${formatQuota(subscription.amount_used)} / ${formatQuota(subscription.amount_total)}`
+}
+
+function getUsagePercent(used: number, total: number): number {
+  if (total <= 0) return 0
+  return Math.min(100, Math.max(0, (used / total) * 100))
+}
+
+function UsageBar({
+  value,
+  className,
+}: {
+  value: number
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        'bg-muted relative h-1.5 overflow-hidden rounded-full',
+        className
+      )}
+    >
+      <div
+        className='bg-primary h-full rounded-full transition-all'
+        style={{ width: `${value}%` }}
+      />
+    </div>
+  )
+}
+
+function getSubscriptionPeriodHint(
+  subscription: UserActiveSubscription,
+  t: (key: string, options?: Record<string, unknown>) => string
+) {
+  return subscription.next_reset_time
+    ? `${t('Next reset')}: ${formatTimestamp(subscription.next_reset_time)}`
+    : `${t('Next reset')}: ${t('No Reset')}`
+}
+
+function SubscriptionProgressCard({
+  subscription,
+  t,
+}: {
+  subscription: UserActiveSubscription
+  t: (key: string, options?: Record<string, unknown>) => string
+}) {
+  const total = Number(subscription.amount_total || 0)
+  const used = Number(subscription.amount_used || 0)
+  const percent = getUsagePercent(used, total)
+
+  return (
+    <div className='space-y-2 rounded-md border bg-background px-2.5 py-2'>
+      <div className='flex items-start justify-between gap-3'>
+        <div className='min-w-0'>
+          <div className='text-sm font-medium'>
+            {getSubscriptionPeriodLabel(subscription, t)}
+          </div>
+          {subscription.plan_title && (
+            <div className='text-muted-foreground truncate text-xs'>
+              {subscription.plan_title}
+            </div>
+          )}
+        </div>
+        <div className='text-right text-sm font-medium tabular-nums'>
+          {renderSubscriptionQuota(subscription, t)}
+          <div className='text-muted-foreground text-xs'>
+            {t('Remaining:')} {formatQuota(subscription.remaining_quota)}
+          </div>
+        </div>
+      </div>
+
+      <UsageBar value={percent} />
+
+      <div className='text-muted-foreground flex items-center justify-between gap-3 text-xs'>
+        <span>{getSubscriptionPeriodHint(subscription, t)}</span>
+        <span>
+          {t('Expiry Time')}: {formatTimestamp(subscription.end_time)}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function WalletUsageCard({
+  used,
+  remaining,
+  t,
+}: {
+  used: number
+  remaining: number
+  t: (key: string, options?: Record<string, unknown>) => string
+}) {
+  const total = used + remaining
+  const percent = getUsagePercent(used, total)
+
+  if (total <= 0) {
+    return (
+      <StatusBadge label={t('No Quota')} variant='neutral' copyable={false} />
+    )
+  }
+
+  return (
+    <div className='space-y-2 rounded-md border bg-background px-2.5 py-2'>
+      <div className='flex items-center justify-between gap-3'>
+        <div className='text-sm font-medium tabular-nums'>
+          {formatQuota(remaining)}
+        </div>
+        <div className='text-muted-foreground text-xs'>
+          {t('Used:')} {formatQuota(used)}
+        </div>
+      </div>
+
+      <UsageBar value={percent} className='bg-emerald-500/15' />
+
+      <div className='text-muted-foreground flex items-center justify-between text-xs'>
+        <span>{t('Wallet Balance')}</span>
+        <span>{formatQuota(total)}</span>
+      </div>
+    </div>
+  )
+}
+
+function TotalUsageCell({
+  user,
+  t,
+}: {
+  user: User
+  t: (key: string, options?: Record<string, unknown>) => string
+}) {
+  const walletUsed = Number(user.used_quota || 0)
+  const subscriptionUsed = (user.active_subscriptions || []).reduce(
+    (sum, subscription) => sum + Number(subscription.amount_used || 0),
+    0
+  )
+  const totalUsed = walletUsed + subscriptionUsed
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={<div className='min-w-[120px] cursor-help space-y-1' />}
+      >
+        <div className='text-sm font-medium tabular-nums'>
+          {formatQuota(totalUsed)}
+        </div>
+        <div className='text-muted-foreground text-xs'>
+          {t('Wallet')}: {formatQuota(walletUsed)}
+        </div>
+        <div className='text-muted-foreground text-xs'>
+          {t('Subscription')}: {formatQuota(subscriptionUsed)}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>
+        <div className='space-y-1 text-xs'>
+          <div>
+            {t('Total Used')}: {formatQuota(totalUsed)}
+          </div>
+          <div>
+            {t('Wallet')}: {formatQuota(walletUsed)}
+          </div>
+          <div>
+            {t('Subscription')}: {formatQuota(subscriptionUsed)}
+          </div>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  )
 }
 
 export function useUsersColumns(): ColumnDef<User>[] {
@@ -183,41 +348,13 @@ export function useUsersColumns(): ColumnDef<User>[] {
         }
 
         return (
-          <div className='min-w-[240px] space-y-2'>
+          <div className='min-w-[280px] space-y-2'>
             {subscriptions.map((subscription) => (
               <Tooltip key={subscription.subscription_id}>
                 <TooltipTrigger
-                  render={
-                    <div className='hover:bg-muted/40 cursor-help rounded-md border px-2.5 py-2 transition-colors' />
-                  }
+                  render={<div className='cursor-help' />}
                 >
-                  <div className='flex items-start justify-between gap-3'>
-                    <div className='min-w-0'>
-                      <div className='text-sm font-medium'>
-                        {getSubscriptionPeriodLabel(subscription, t)}
-                      </div>
-                      {subscription.plan_title && (
-                        <div className='text-muted-foreground truncate text-xs'>
-                          {subscription.plan_title}
-                        </div>
-                      )}
-                    </div>
-                    <div className='text-right text-sm font-medium tabular-nums'>
-                      {renderSubscriptionQuota(subscription, t)}
-                    </div>
-                  </div>
-                  <div className='text-muted-foreground mt-1.5 space-y-1 text-xs'>
-                    <div>
-                      {t('Next reset')}:{' '}
-                      {subscription.next_reset_time
-                        ? formatTimestamp(subscription.next_reset_time)
-                        : t('No Reset')}
-                    </div>
-                    <div>
-                      {t('Expiry Time')}:{' '}
-                      {formatTimestamp(subscription.end_time)}
-                    </div>
-                  </div>
+                  <SubscriptionProgressCard subscription={subscription} t={t} />
                 </TooltipTrigger>
                 <TooltipContent>
                   <div className='space-y-1 text-xs'>
@@ -259,45 +396,18 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const user = row.original
         const used = user.used_quota
         const remaining = user.quota
-
-        if (remaining === 0 && used === 0) {
-          return (
-            <StatusBadge
-              label={t('No Quota')}
-              variant='neutral'
-              copyable={false}
-            />
-          )
-        }
-
-        return (
-          <Tooltip>
-            <TooltipTrigger
-              render={<div className='w-[170px] cursor-help space-y-1' />}
-            >
-              <div className='space-y-1'>
-                <div className='text-sm font-medium tabular-nums'>
-                  {formatQuota(remaining)}
-                </div>
-                <div className='text-muted-foreground text-xs'>
-                  {t('Used:')} {formatQuota(used)}
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <div className='space-y-1 text-xs'>
-                <div>
-                  {t('Balance')}: {formatQuota(remaining)}
-                </div>
-                <div>
-                  {t('Used:')} {formatQuota(used)}
-                </div>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        )
+        return <WalletUsageCard used={used} remaining={remaining} t={t} />
       },
       meta: { label: t('Balance') },
+    },
+    {
+      id: 'total_usage',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Total Used')} />
+      ),
+      cell: ({ row }) => <TotalUsageCell user={row.original} t={t} />,
+      enableSorting: false,
+      meta: { label: t('Total Used') },
     },
     {
       accessorKey: 'group',
