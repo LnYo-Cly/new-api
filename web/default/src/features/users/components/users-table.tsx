@@ -69,7 +69,7 @@ export function UsersTable() {
   })
 
   // Fetch data with React Query
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: [
       'users',
       pagination.pageIndex + 1,
@@ -165,6 +165,10 @@ export function UsersTable() {
       skeletonKeyPrefix='users-skeleton'
       toolbarProps={{
         searchPlaceholder: t('Filter by username, name or email...'),
+        onSearch: () => {
+          void refetch()
+        },
+        searchLoading: isFetching,
         filters: [
           {
             columnId: 'status',
