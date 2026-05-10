@@ -35,6 +35,7 @@ import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
 import {
   batchClearCodexPoolState,
+  batchRefreshCodexCredentials,
   batchRefreshCodexUsage,
   batchTestChannels,
 } from '../api'
@@ -43,7 +44,6 @@ import {
   handleBatchDelete,
   handleBatchDisable,
   handleBatchEnable,
-  handleBatchRefreshCodexCredentials,
   handleBatchSetTag,
 } from '../lib'
 import type { Channel } from '../types'
@@ -161,7 +161,7 @@ export function DataTableBulkActions<TData>(
     null
   )
   const [batchLoading, setBatchLoading] = useState<
-    'test' | 'codex_usage' | 'codex_pool_clear' | null
+    'test' | 'codex_usage' | 'codex_pool_clear' | 'codex_token' | null
   >(null)
   const [tagValue, setTagValue] = useState('')
 
@@ -208,11 +208,62 @@ export function DataTableBulkActions<TData>(
     })
   }
 
-  const handleRefreshCodexCredentials = () => {
-    handleBatchRefreshCodexCredentials(selectedIds, queryClient, () => {
-      setShowRefreshCodexConfirm(false)
+  const handleRefreshCodexCredentials = async () => {
+    if (selectedIds.length === 0 || batchLoading) return
+    setBatchLoading('codex_token')
+    setShowRefreshCodexConfirm(false)
+    try {
+      const response = await batchRefreshCodexCredentials({ ids: selectedIds })
+      if (!response.success || !response.data) {
+        throw new Error(
+          response.message || t('Batch Codex token refresh failed')
+        )
+      }
+      showResult({
+        title: t(
+          'Codex token refresh completed: {{refreshed}} refreshed, {{failed}} failed, {{disabled}} disabled',
+          {
+            refreshed: response.data.refreshed_channels,
+            failed: response.data.failed_channels,
+            disabled: response.data.disabled_channels,
+          }
+        ),
+        summary: [
+          {
+            label: 'Refreshed',
+            value: response.data.refreshed_channels,
+            variant: 'success',
+          },
+          {
+            label: 'Failed',
+            value: response.data.failed_channels,
+            variant: response.data.failed_channels > 0 ? 'danger' : 'neutral',
+          },
+          {
+            label: 'Disabled',
+            value: response.data.disabled_channels,
+            variant:
+              response.data.disabled_channels > 0 ? 'warning' : 'neutral',
+          },
+        ],
+        failures: response.data.failures ?? [],
+      })
+      queryClient.invalidateQueries({ queryKey: ['channels', 'list'] })
       handleClearSelection()
-    })
+    } catch (error) {
+      showResult({
+        title:
+          error instanceof Error
+            ? error.message
+            : t('Batch Codex token refresh failed'),
+        summary: [
+          { label: 'Failed', value: selectedIds.length, variant: 'danger' },
+        ],
+        failures: [],
+      })
+    } finally {
+      setBatchLoading(null)
+    }
   }
 
   const showResult = (result: BatchOperationResult) => {
@@ -525,7 +576,11 @@ export function DataTableBulkActions<TData>(
               />
             }
           >
-            <KeyRound />
+            {batchLoading === 'codex_token' ? (
+              <Loader2 className='animate-spin' />
+            ) : (
+              <KeyRound />
+            )}
             <span className='sr-only'>
               {t('Refresh selected Codex OAuth tokens')}
             </span>
@@ -688,7 +743,10 @@ export function DataTableBulkActions<TData>(
             >
               {t('Cancel')}
             </Button>
-            <Button onClick={handleRefreshCodexCredentials}>
+            <Button
+              onClick={handleRefreshCodexCredentials}
+              disabled={batchLoading === 'codex_token'}
+            >
               {t('Refresh Tokens')}
             </Button>
           </DialogFooter>

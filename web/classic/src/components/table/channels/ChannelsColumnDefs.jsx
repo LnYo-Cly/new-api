@@ -309,6 +309,22 @@ const getCodexWindowPercent = (summary, keys) => {
   return '-';
 };
 
+const getCodexStatusReason = (summary) => {
+  const candidates = [
+    summary?.message,
+    summary?.reason,
+    summary?.error,
+    summary?.error_message,
+    summary?.status_reason,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim() !== '') {
+      return candidate.trim();
+    }
+  }
+  return '';
+};
+
 const renderCodexAccountStatus = (record, t) => {
   if (record.children !== undefined || record.type !== 57) {
     return <span className='text-semi-color-text-2'>-</span>;
@@ -336,6 +352,7 @@ const renderCodexAccountStatus = (record, t) => {
     'weekly_window',
     'weeklyWindow',
   ]);
+  const statusReason = getCodexStatusReason(summary);
 
   return (
     <Tooltip
@@ -368,9 +385,9 @@ const renderCodexAccountStatus = (record, t) => {
           <div>
             {t('冷却至')}：{cooldownUntilText}
           </div>
-          {summary?.message ? (
+          {statusReason ? (
             <div className='mt-1 break-words' style={{ color: 'var(--semi-color-text-1)' }}>
-              {summary.message}
+              {t('原因')}：{statusReason}
             </div>
           ) : null}
         </div>
