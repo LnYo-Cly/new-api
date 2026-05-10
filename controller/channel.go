@@ -159,7 +159,7 @@ func clearChannelInfo(channel *model.Channel) {
 }
 
 func GetAllChannels(c *gin.Context) {
-	pageInfo := common.GetPageQuery(c)
+	pageInfo := common.GetPageQueryWithMaxPageSize(c, 500)
 	channelData := make([]*model.Channel, 0)
 	idSort, _ := strconv.ParseBool(c.Query("id_sort"))
 	sortOptions := model.NewChannelSortOptions(c.Query("sort_by"), c.Query("sort_order"), idSort)
@@ -480,6 +480,9 @@ func SearchChannels(c *gin.Context) {
 	if pageSize <= 0 {
 		pageSize = 20
 	}
+	if pageSize > 500 {
+		pageSize = 500
+	}
 
 	total := len(channelData)
 	startIdx := (page - 1) * pageSize
@@ -657,16 +660,28 @@ func RefreshCodexChannelCredential(c *gin.Context) {
 	oauthKey, ch, err := service.RefreshCodexChannelCredential(ctx, channelId, service.CodexCredentialRefreshOptions{ResetCaches: true})
 	if err != nil {
 		common.SysError("failed to refresh codex channel credential: " + err.Error())
+		message := strings.TrimSpace(err.Error())
+		if message == "" {
+			message = "刷新凭证失败，请稍后重试"
+		}
 		if service.IsCodexCredentialInvalidError(err) {
 			if ch, getErr := model.GetChannelById(channelId, true); getErr == nil && ch != nil {
 				service.DisableChannel(*types.NewChannelError(ch.Id, ch.Type, ch.Name, ch.ChannelInfo.IsMultiKey, "", ch.GetAutoBan()), err.Error())
 				model.InitChannelCache()
 				service.ResetProxyClientCache()
 			}
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "Codex OAuth 凭证已失效，渠道已自动禁用，请重新授权"})
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "Codex OAuth 凭证已失效，渠道已自动禁用，请重新授权：" + message,
+				"error":   message,
+			})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "刷新凭证失败，请稍后重试"})
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "刷新凭证失败：" + message,
+			"error":   message,
+		})
 		return
 	}
 
@@ -842,6 +857,21 @@ func DeleteChannel(c *gin.Context) {
 
 func DeleteDisabledChannel(c *gin.Context) {
 	rows, err := model.DeleteDisabledChannel()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	model.InitChannelCache()
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    rows,
+	})
+	return
+}
+
+func DeleteCredentialInvalidCodexChannels(c *gin.Context) {
+	rows, err := model.DeleteCredentialInvalidCodexChannels()
 	if err != nil {
 		common.ApiError(c, err)
 		return

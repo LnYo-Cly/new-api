@@ -4188,6 +4188,10 @@
     "默认用户消息": "Xin chào",
     "默认补全倍率": "Tỷ lệ hoàn thành mặc định",
     "阶梯计费（表达式解析失败）": "Thanh toán theo bậc (không phân tích được biểu thức)",
-    "阶梯计费（未匹配到对应阶梯）": "Thanh toán theo bậc (không tìm thấy bậc phù hợp)"
+    "阶梯计费（未匹配到对应阶梯）": "Thanh toán theo bậc (không tìm thấy bậc phù hợp)",
+    "确定要删除凭证失效的 Codex 渠道吗？": "Xóa các kênh Codex có thông tin xác thực không hợp lệ?",
+    "将永久删除所有账号状态为凭证失效的 Codex 渠道，此操作不可撤销。": "Thao tác này sẽ xóa vĩnh viễn tất cả kênh Codex có trạng thái tài khoản là thông tin xác thực không hợp lệ. Không thể hoàn tác.",
+    "删除凭证失效 Codex 渠道": "Xóa kênh Codex có thông tin xác thực không hợp lệ",
+    "已删除凭证失效 Codex 渠道，共计 ${data} 个": "Đã xóa các kênh Codex có thông tin xác thực không hợp lệ, tổng cộng ${data}"
   }
 }

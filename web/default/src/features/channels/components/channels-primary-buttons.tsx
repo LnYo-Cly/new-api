@@ -28,6 +28,7 @@ import { Switch } from '@/components/ui/switch'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   handleDeleteAllDisabled,
+  handleDeleteCredentialInvalidCodexChannels,
   handleFixAbilities,
   handleTestAllChannels,
   handleUpdateAllBalances,
@@ -46,6 +47,7 @@ export function ChannelsPrimaryButtons() {
   } = useChannels()
   const queryClient = useQueryClient()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showDeleteInvalidDialog, setShowDeleteInvalidDialog] = useState(false)
 
   const handleTagModeToggle = (checked: boolean) => {
     localStorage.setItem('enable-tag-mode', String(checked))
@@ -193,6 +195,19 @@ export function ChannelsPrimaryButtons() {
                 <Trash2 className='h-4 w-4' />
               </DropdownMenuShortcut>
             </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault()
+                setShowDeleteInvalidDialog(true)
+              }}
+              className='text-destructive focus:text-destructive'
+            >
+              {t('Delete Credential-Invalid Codex')}
+              <DropdownMenuShortcut>
+                <Trash2 className='h-4 w-4' />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -201,7 +216,9 @@ export function ChannelsPrimaryButtons() {
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
         title={t('Delete All Disabled Channels?')}
-        desc='This will permanently delete all manually and automatically disabled channels. This action cannot be undone.'
+        desc={t(
+          'This will permanently delete all manually and automatically disabled channels. This action cannot be undone.'
+        )}
         destructive
         handleConfirm={() => {
           handleDeleteAllDisabled(queryClient, (_count) => {
@@ -209,6 +226,23 @@ export function ChannelsPrimaryButtons() {
             console.log(`Deleted ${_count} channels`)
           })
           setShowDeleteDialog(false)
+        }}
+      />
+
+      <ConfirmDialog
+        open={showDeleteInvalidDialog}
+        onOpenChange={setShowDeleteInvalidDialog}
+        title={t('Delete Credential-Invalid Codex Channels?')}
+        desc={t(
+          'This will permanently delete all Codex channels whose account status is credential invalid. This action cannot be undone.'
+        )}
+        destructive
+        handleConfirm={() => {
+          handleDeleteCredentialInvalidCodexChannels(queryClient, (_count) => {
+            // eslint-disable-next-line no-console
+            console.log(`Deleted ${_count} credential-invalid Codex channels`)
+          })
+          setShowDeleteInvalidDialog(false)
         }}
       />
     </>

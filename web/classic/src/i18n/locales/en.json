@@ -3799,6 +3799,10 @@
     "见上方动态计费详情": "See dynamic pricing details above",
     "含时间条件": "Time rules",
     "含请求条件": "Request rules",
-    "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Currently only supports Epay interface, the default callback address is the server address above!)"
+    "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Currently only supports Epay interface, the default callback address is the server address above!)",
+    "确定要删除凭证失效的 Codex 渠道吗？": "Delete credential-invalid Codex channels?",
+    "将永久删除所有账号状态为凭证失效的 Codex 渠道，此操作不可撤销。": "This will permanently delete all Codex channels whose account status is credential invalid. This action cannot be undone.",
+    "删除凭证失效 Codex 渠道": "Delete credential-invalid Codex channels",
+    "已删除凭证失效 Codex 渠道，共计 ${data} 个": "Deleted credential-invalid Codex channels, total ${data}"
   }
 }

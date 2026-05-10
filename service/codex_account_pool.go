@@ -425,6 +425,13 @@ func isCodexRequestShapeError(err *types.NewAPIError, message string, statusCode
 		return false
 	}
 	switch {
+	case strings.Contains(lower, "client_gone"),
+		strings.Contains(lower, "context canceled"),
+		strings.Contains(lower, "client disconnected"),
+		strings.Contains(lower, "client closed"),
+		strings.Contains(lower, "broken pipe"),
+		strings.Contains(lower, "connection reset by peer"):
+		return true
 	case strings.Contains(lower, "stream must be set to true"),
 		strings.Contains(lower, "stream must be true"),
 		strings.Contains(lower, "items are not persisted when `store` is set to false"),

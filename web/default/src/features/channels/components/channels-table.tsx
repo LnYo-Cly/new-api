@@ -403,6 +403,7 @@ export function ChannelsTable() {
       tableScrollClassName='max-h-[calc(100dvh-18rem)] overflow-auto'
       tableElementClassName='min-w-max'
       tableHeaderClassName='bg-background sticky top-0 z-20'
+      pageSizeOptions={[10, 20, 50, 100, 200, 500]}
       toolbarProps={{
         searchPlaceholder: t('Filter by name, ID, or key...'),
         additionalSearch: (

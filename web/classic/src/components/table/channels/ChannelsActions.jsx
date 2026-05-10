@@ -40,6 +40,7 @@ const ChannelsActions = ({
   fixChannelsAbilities,
   updateAllChannelsBalance,
   deleteAllDisabledChannels,
+  deleteCredentialInvalidCodexChannels,
   applyAllUpstreamUpdates,
   detectAllUpstreamUpdates,
   detectAllUpstreamUpdatesLoading,
@@ -278,6 +279,26 @@ const ChannelsActions = ({
                     }}
                   >
                     {t('删除禁用通道')}
+                  </Button>
+                </Dropdown.Item>
+                <Dropdown.Item>
+                  <Button
+                    size='small'
+                    type='danger'
+                    className='w-full'
+                    onClick={() => {
+                      Modal.confirm({
+                        title: t('确定要删除凭证失效的 Codex 渠道吗？'),
+                        content: t(
+                          '将永久删除所有账号状态为凭证失效的 Codex 渠道，此操作不可撤销。',
+                        ),
+                        onOk: () => deleteCredentialInvalidCodexChannels(),
+                        size: 'sm',
+                        centered: true,
+                      });
+                    }}
+                  >
+                    {t('删除凭证失效 Codex 渠道')}
                   </Button>
                 </Dropdown.Item>
               </Dropdown.Menu>

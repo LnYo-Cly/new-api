@@ -3654,6 +3654,10 @@
     "默认用户消息": "Bonjour",
     "默认补全倍率": "Taux de complétion par défaut",
     "阶梯计费（表达式解析失败）": "Facturation par paliers (échec de l'analyse de l'expression)",
-    "阶梯计费（未匹配到对应阶梯）": "Facturation par paliers (aucun palier correspondant)"
+    "阶梯计费（未匹配到对应阶梯）": "Facturation par paliers (aucun palier correspondant)",
+    "确定要删除凭证失效的 Codex 渠道吗？": "Supprimer les canaux Codex aux identifiants invalides ?",
+    "将永久删除所有账号状态为凭证失效的 Codex 渠道，此操作不可撤销。": "Cela supprimera definitivement tous les canaux Codex dont le statut du compte indique des identifiants invalides. Cette action ne peut pas etre annulee.",
+    "删除凭证失效 Codex 渠道": "Supprimer les canaux Codex aux identifiants invalides",
+    "已删除凭证失效 Codex 渠道，共计 ${data} 个": "Canaux Codex aux identifiants invalides supprimes, total ${data}"
   }
 }

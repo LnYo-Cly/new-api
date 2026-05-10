@@ -160,6 +160,11 @@ export type DataTablePageProps<TData> = {
   paginationInFooter?: boolean
 
   /**
+   * Page-size choices for the shared pagination control.
+   */
+  pageSizeOptions?: number[]
+
+  /**
    * Extra content rendered between the table/mobile list and the pagination.
    * E.g. summary stats, helper text.
    */
@@ -240,6 +245,7 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
             <DataTablePagination
               table={props.table}
               totalRows={props.totalRows}
+              pageSizeOptions={props.pageSizeOptions}
             />
           </PageFooterPortal>
         ) : (
@@ -247,6 +253,7 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
             <DataTablePagination
               table={props.table}
               totalRows={props.totalRows}
+              pageSizeOptions={props.pageSizeOptions}
             />
           </div>
         ))}

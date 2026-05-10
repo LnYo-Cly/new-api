@@ -6,6 +6,7 @@ import {
   batchRefreshCodexCredentials,
   copyChannel,
   deleteChannel,
+  deleteCredentialInvalidCodexChannels,
   testChannel,
   updateChannel,
   batchDeleteChannels,
@@ -551,6 +552,29 @@ export async function handleDeleteAllDisabled(
     }
   } catch (_error) {
     toast.error(i18next.t('Failed to delete disabled channels'))
+  }
+}
+
+/**
+ * Delete all Codex channels with credential invalid status
+ */
+export async function handleDeleteCredentialInvalidCodexChannels(
+  queryClient?: QueryClient,
+  onSuccess?: (deletedCount: number) => void
+): Promise<void> {
+  try {
+    const response = await deleteCredentialInvalidCodexChannels()
+    if (response.success) {
+      toast.success(
+        i18next.t('{{count}} credential-invalid Codex channel(s) deleted', {
+          count: response.data || 0,
+        })
+      )
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.(response.data || 0)
+    }
+  } catch (_error) {
+    toast.error(i18next.t('Failed to delete credential-invalid Codex channels'))
   }
 }
 

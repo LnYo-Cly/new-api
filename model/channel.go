@@ -830,6 +830,48 @@ func DeleteDisabledChannel() (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
+func DeleteCredentialInvalidCodexChannels() (int64, error) {
+	channels := make([]*Channel, 0)
+	err := DB.Model(&Channel{}).
+		Select("id", "other_info").
+		Where("type = ?", constant.ChannelTypeCodex).
+		Find(&channels).Error
+	if err != nil {
+		return 0, err
+	}
+	ids := make([]int, 0, len(channels))
+	for _, channel := range channels {
+		if channel == nil {
+			continue
+		}
+		if channelHasCodexCredentialInvalidStatus(channel.OtherInfo) {
+			ids = append(ids, channel.Id)
+		}
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	if err := BatchDeleteChannels(ids); err != nil {
+		return 0, err
+	}
+	return int64(len(ids)), nil
+}
+
+func channelHasCodexCredentialInvalidStatus(otherInfo string) bool {
+	if strings.TrimSpace(otherInfo) == "" {
+		return false
+	}
+	payload := struct {
+		CodexAccount struct {
+			Status string `json:"status"`
+		} `json:"codex_account"`
+	}{}
+	if err := common.Unmarshal([]byte(otherInfo), &payload); err != nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(payload.CodexAccount.Status), "credential_invalid")
+}
+
 func GetPaginatedTags(offset int, limit int) ([]*string, error) {
 	var tags []*string
 	err := DB.Model(&Channel{}).Select("DISTINCT tag").Where("tag != ''").Offset(offset).Limit(limit).Find(&tags).Error

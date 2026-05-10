@@ -62,6 +62,8 @@ func TestClassifyCodexRelayFailure_RequestShapeErrorsDoNotMutateAccountStatus(t 
 		{name: "previous_response_missing", message: "previous_response_not_found", statusCode: http.StatusNotFound},
 		{name: "codex_model_mismatch", message: "The 'gpt-5.3-codex-spark' model is not supported when using Codex with a ChatGPT account.", statusCode: http.StatusBadRequest},
 		{name: "local_endpoint_unsupported", message: "codex channel: /v1/chat/completions endpoint not supported", statusCode: http.StatusInternalServerError},
+		{name: "client_gone", message: "codex stream disconnected before response.completed: client_gone", statusCode: http.StatusBadGateway},
+		{name: "context_canceled", message: "context canceled", statusCode: http.StatusBadGateway},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -3241,6 +3241,7 @@
     "Referral Program": "Chương trình Giới thiệu",
     "Refine models by provider, group, type, and tags.": "Tinh chỉnh mô hình theo nhà cung cấp, nhóm, loại và thẻ.",
     "Refresh": "Làm mới",
+    "Refreshed": "Đã làm mới",
     "Refresh Cache": "Làm mới bộ nhớ đệm",
     "Refresh Codex OAuth Tokens?": "Lam moi token OAuth Codex?",
     "Refresh credential": "Làm mới thông tin xác thực",
@@ -4536,6 +4537,12 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Delete Credential-Invalid Codex": "Xóa Codex có thông tin xác thực không hợp lệ",
+    "Delete Credential-Invalid Codex Channels?": "Xóa các kênh Codex có thông tin xác thực không hợp lệ?",
+    "Failed to delete credential-invalid Codex channels": "Không thể xóa các kênh Codex có thông tin xác thực không hợp lệ",
+    "This will permanently delete all Codex channels whose account status is credential invalid. This action cannot be undone.": "Thao tác này sẽ xóa vĩnh viễn tất cả kênh Codex có trạng thái tài khoản là thông tin xác thực không hợp lệ. Không thể hoàn tác.",
+    "This will permanently delete all manually and automatically disabled channels. This action cannot be undone.": "Thao tác này sẽ xóa vĩnh viễn tất cả kênh bị vô hiệu hóa thủ công và tự động. Không thể hoàn tác.",
+    "{{count}} credential-invalid Codex channel(s) deleted": "Đã xóa {{count}} kênh Codex có thông tin xác thực không hợp lệ"
   }
 }

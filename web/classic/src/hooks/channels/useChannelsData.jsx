@@ -964,6 +964,22 @@ export const useChannelsData = () => {
     }
   };
 
+  const deleteCredentialInvalidCodexChannels = async () => {
+    const res = await API.delete(`/api/channel/credential_invalid`);
+    const { success, message, data } = res.data;
+    if (success) {
+      showSuccess(
+        t('已删除凭证失效 Codex 渠道，共计 ${data} 个').replace(
+          '${data}',
+          data,
+        ),
+      );
+      await refresh();
+    } else {
+      showError(message);
+    }
+  };
+
   const updateAllChannelsBalance = async () => {
     const res = await API.get(`/api/channel/update_balance`);
     const { success, message } = res.data;
@@ -1458,6 +1474,7 @@ export const useChannelsData = () => {
     batchClearCodexPoolState,
     testAllChannels,
     deleteAllDisabledChannels,
+    deleteCredentialInvalidCodexChannels,
     updateAllChannelsBalance,
     updateChannelBalance,
     fixChannelsAbilities,

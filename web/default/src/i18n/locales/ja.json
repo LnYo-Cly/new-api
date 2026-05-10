@@ -3241,6 +3241,7 @@
     "Referral Program": "紹介プログラム",
     "Refine models by provider, group, type, and tags.": "プロバイダー、グループ、タイプ、タグでモデルを絞り込みます。",
     "Refresh": "更新",
+    "Refreshed": "更新済み",
     "Refresh Cache": "キャッシュ更新",
     "Refresh Codex OAuth Tokens?": "Codex OAuth トークンを更新しますか？",
     "Refresh credential": "認証情報を更新",
@@ -4536,6 +4537,12 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Delete Credential-Invalid Codex": "認証情報が無効な Codex を削除",
+    "Delete Credential-Invalid Codex Channels?": "認証情報が無効な Codex チャンネルを削除しますか？",
+    "Failed to delete credential-invalid Codex channels": "認証情報が無効な Codex チャンネルの削除に失敗しました",
+    "This will permanently delete all Codex channels whose account status is credential invalid. This action cannot be undone.": "アカウント状態が認証情報無効のすべての Codex チャンネルを完全に削除します。この操作は元に戻せません。",
+    "This will permanently delete all manually and automatically disabled channels. This action cannot be undone.": "手動または自動で無効化されたすべてのチャンネルを完全に削除します。この操作は元に戻せません。",
+    "{{count}} credential-invalid Codex channel(s) deleted": "認証情報が無効な Codex チャンネルを {{count}} 件削除しました"
   }
 }

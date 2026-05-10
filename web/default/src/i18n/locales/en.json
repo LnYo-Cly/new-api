@@ -3241,6 +3241,7 @@
     "Referral Program": "Referral Program",
     "Refine models by provider, group, type, and tags.": "Refine models by provider, group, type, and tags.",
     "Refresh": "Refresh",
+    "Refreshed": "Refreshed",
     "Refresh Cache": "Refresh Cache",
     "Refresh Codex OAuth Tokens?": "Refresh Codex OAuth Tokens?",
     "Refresh credential": "Refresh credential",
@@ -4536,6 +4537,12 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Delete Credential-Invalid Codex": "Delete Credential-Invalid Codex",
+    "Delete Credential-Invalid Codex Channels?": "Delete Credential-Invalid Codex Channels?",
+    "Failed to delete credential-invalid Codex channels": "Failed to delete credential-invalid Codex channels",
+    "This will permanently delete all Codex channels whose account status is credential invalid. This action cannot be undone.": "This will permanently delete all Codex channels whose account status is credential invalid. This action cannot be undone.",
+    "This will permanently delete all manually and automatically disabled channels. This action cannot be undone.": "This will permanently delete all manually and automatically disabled channels. This action cannot be undone.",
+    "{{count}} credential-invalid Codex channel(s) deleted": "{{count}} credential-invalid Codex channel(s) deleted"
   }
 }

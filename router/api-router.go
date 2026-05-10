@@ -240,6 +240,7 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/", controller.AddChannel)
 			channelRoute.PUT("/", controller.UpdateChannel)
 			channelRoute.DELETE("/disabled", controller.DeleteDisabledChannel)
+			channelRoute.DELETE("/credential_invalid", controller.DeleteCredentialInvalidCodexChannels)
 			channelRoute.POST("/tag/disabled", controller.DisableTagChannels)
 			channelRoute.POST("/tag/enabled", controller.EnableTagChannels)
 			channelRoute.PUT("/tag", controller.EditTagChannels)

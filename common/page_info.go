@@ -39,6 +39,10 @@ func (p *PageInfo) SetItems(items any) {
 }
 
 func GetPageQuery(c *gin.Context) *PageInfo {
+	return GetPageQueryWithMaxPageSize(c, 100)
+}
+
+func GetPageQueryWithMaxPageSize(c *gin.Context, maxPageSize int) *PageInfo {
 	pageInfo := &PageInfo{}
 	// 手动获取并处理每个参数
 	if page, err := strconv.Atoi(c.Query("p")); err == nil {
@@ -74,8 +78,8 @@ func GetPageQuery(c *gin.Context) *PageInfo {
 		}
 	}
 
-	if pageInfo.PageSize > 100 {
-		pageInfo.PageSize = 100
+	if maxPageSize > 0 && pageInfo.PageSize > maxPageSize {
+		pageInfo.PageSize = maxPageSize
 	}
 
 	return pageInfo

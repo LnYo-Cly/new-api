@@ -20,11 +20,13 @@ import {
 type DataTablePaginationProps<TData> = {
   table: Table<TData>
   totalRows?: number
+  pageSizeOptions?: number[]
 }
 
 export function DataTablePagination<TData>({
   table,
   totalRows,
+  pageSizeOptions = [10, 20, 30, 40, 50, 100],
 }: DataTablePaginationProps<TData>) {
   const { t } = useTranslation()
   const currentPage = table.getState().pagination.pageIndex + 1
@@ -68,7 +70,7 @@ export function DataTablePagination<TData>({
         <div className='flex items-center gap-2 @max-2xl/content:flex-row-reverse'>
           <Select
             items={[
-              ...[10, 20, 30, 40, 50, 100].map((pageSize) => ({
+              ...pageSizeOptions.map((pageSize) => ({
                 value: `${pageSize}`,
                 label: pageSize,
               })),
@@ -83,7 +85,7 @@ export function DataTablePagination<TData>({
             </SelectTrigger>
             <SelectContent side='top' alignItemWithTrigger={false}>
               <SelectGroup>
-                {[10, 20, 30, 40, 50, 100].map((pageSize) => (
+                {pageSizeOptions.map((pageSize) => (
                   <SelectItem key={pageSize} value={`${pageSize}`}>
                     {pageSize}
                   </SelectItem>

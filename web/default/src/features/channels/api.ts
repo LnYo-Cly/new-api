@@ -65,6 +65,7 @@ export type CodexUsageResponse = {
 export type CodexCredentialRefreshResponse = {
   success: boolean
   message?: string
+  error?: string
   data?: {
     expires_at?: string
     last_refresh?: string
@@ -285,6 +286,18 @@ export async function deleteDisabledChannels(): Promise<{
   data?: number
 }> {
   const res = await api.delete('/api/channel/disabled')
+  return res.data
+}
+
+/**
+ * Delete all Codex channels with credential invalid status
+ */
+export async function deleteCredentialInvalidCodexChannels(): Promise<{
+  success: boolean
+  message?: string
+  data?: number
+}> {
+  const res = await api.delete('/api/channel/credential_invalid')
   return res.data
 }
 
