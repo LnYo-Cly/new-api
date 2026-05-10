@@ -452,7 +452,7 @@ export function SubscriptionPlansCard({
                         </div>
                       )}
                       <div className='text-muted-foreground mt-1'>
-                        {t('Total Quota')}:{' '}
+                        {t('Quota Amount')}:{' '}
                         {totalAmount > 0 ? (
                           <Tooltip>
                             <TooltipTrigger
@@ -514,8 +514,8 @@ export function SubscriptionPlansCard({
                   ? `${t('Quota Reset')}: ${formatResetPeriod(plan, t)}`
                   : null,
                 totalAmount > 0
-                  ? `${t('Total Quota')}: ${formatQuota(totalAmount)} (${t('Internal quota units')}: ${formatInternalQuota(totalAmount)})`
-                  : `${t('Total Quota')}: ${t('Unlimited')}`,
+                  ? `${t('Quota Amount')}: ${formatQuota(totalAmount)} (${t('Internal quota units')}: ${formatInternalQuota(totalAmount)})`
+                  : `${t('Quota Amount')}: ${t('Unlimited')}`,
                 limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
                 plan.upgrade_group
                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`

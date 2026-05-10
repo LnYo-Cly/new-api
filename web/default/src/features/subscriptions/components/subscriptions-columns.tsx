@@ -156,9 +156,9 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       },
       {
         id: 'total_amount',
-        meta: { label: t('Total Quota'), mobileHidden: true },
+        meta: { label: t('Quota Amount'), mobileHidden: true },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Total Quota')} />
+          <DataTableColumnHeader column={column} title={t('Quota Amount')} />
         ),
         cell: ({ row }) => {
           const total = Number(row.original.plan.total_amount || 0)

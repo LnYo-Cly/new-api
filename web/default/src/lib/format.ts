@@ -149,13 +149,27 @@ export function formatLogQuota(quota: number): string {
 }
 
 /**
- * Format tokens count with K/M suffixes
+ * Format tokens count with K/M/B/T suffixes.
  */
 export function formatTokens(tokens: number): string {
-  if (tokens === 0) return '-'
-  if (tokens < 1000) return tokens.toString()
-  if (tokens < 1000000) return `${(tokens / 1000).toFixed(1)}K`
-  return `${(tokens / 1000000).toFixed(2)}M`
+  if (!Number.isFinite(tokens)) return '-'
+  if (tokens === 0) return '0'
+  const sign = tokens < 0 ? '-' : ''
+  const abs = Math.abs(tokens)
+  if (abs > 0 && abs < 1) {
+    return `${sign}${abs.toFixed(3).replace(/\.0+$|(\.\d*[1-9])0+$/, '$1')}`
+  }
+  const units = [
+    { value: 1000000000000, suffix: 'T' },
+    { value: 1000000000, suffix: 'B' },
+    { value: 1000000, suffix: 'M' },
+    { value: 1000, suffix: 'K' },
+  ]
+  const unit = units.find((item) => abs >= item.value)
+  if (!unit) return `${sign}${Math.round(abs).toString()}`
+  const value = abs / unit.value
+  const digits = value >= 100 ? 0 : value >= 10 ? 1 : 2
+  return `${sign}${value.toFixed(digits).replace(/\.0+$|(\.\d*[1-9])0+$/, '$1')}${unit.suffix}`
 }
 
 /**

@@ -4,6 +4,12 @@ import { getSelf } from '@/lib/api'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { SectionPageLayout } from '@/components/layout'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
@@ -55,6 +61,9 @@ export function Wallet(props: WalletProps) {
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
+  const [activeWalletTab, setActiveWalletTab] = useState<
+    'subscription' | 'topup'
+  >('subscription')
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
@@ -235,8 +244,47 @@ export function Wallet(props: WalletProps) {
   const handleSubscriptionAvailabilityChange = useCallback(
     (available: boolean) => {
       setShowSubscriptionPanel(available)
+      if (available) {
+        setActiveWalletTab((current) =>
+          current === 'topup' ? 'subscription' : current
+        )
+      } else {
+        setActiveWalletTab('topup')
+      }
     },
     []
+  )
+
+  const rechargeForm = (
+    <RechargeFormCard
+      topupInfo={topupInfo}
+      presetAmounts={presetAmounts}
+      selectedPreset={selectedPreset}
+      onSelectPreset={handleSelectPreset}
+      topupAmount={topupAmount}
+      onTopupAmountChange={handleTopupAmountChange}
+      paymentAmount={paymentAmount}
+      calculating={calculating}
+      onPaymentMethodSelect={handlePaymentMethodSelect}
+      paymentLoading={paymentLoading}
+      redemptionCode={redemptionCode}
+      onRedemptionCodeChange={setRedemptionCode}
+      onRedeem={handleRedeem}
+      redeeming={redeeming}
+      topupLink={topupInfo?.topup_link}
+      loading={topupLoading}
+      priceRatio={(status?.price as number) || 1}
+      usdExchangeRate={effectiveUsdExchangeRate}
+      onOpenBilling={() => setBillingDialogOpen(true)}
+      creemProducts={topupInfo?.creem_products}
+      enableCreemTopup={topupInfo?.enable_creem_topup}
+      onCreemProductSelect={handleCreemProductSelect}
+      enableWaffoTopup={topupInfo?.enable_waffo_topup}
+      waffoPayMethods={topupInfo?.waffo_pay_methods}
+      waffoMinTopup={topupInfo?.waffo_min_topup}
+      onWaffoMethodSelect={handleWaffoMethodSelect}
+      enableWaffoPancakeTopup={topupInfo?.enable_waffo_pancake_topup}
+    />
   )
 
   return (
@@ -250,48 +298,52 @@ export function Wallet(props: WalletProps) {
           <div className='mx-auto w-full max-w-[1440px] space-y-4 sm:space-y-5'>
             <WalletStatsCard user={user} loading={userLoading} />
 
-            <div
-              className={
-                showSubscriptionPanel
-                  ? 'grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(360px,0.62fr)] xl:items-start'
-                  : 'grid gap-4'
-              }
-            >
-              <div className='min-w-0 space-y-4'>
-                <div id='wallet-add-funds' className='scroll-mt-4'>
-                  <RechargeFormCard
-                    topupInfo={topupInfo}
-                    presetAmounts={presetAmounts}
-                    selectedPreset={selectedPreset}
-                    onSelectPreset={handleSelectPreset}
-                    topupAmount={topupAmount}
-                    onTopupAmountChange={handleTopupAmountChange}
-                    paymentAmount={paymentAmount}
-                    calculating={calculating}
-                    onPaymentMethodSelect={handlePaymentMethodSelect}
-                    paymentLoading={paymentLoading}
-                    redemptionCode={redemptionCode}
-                    onRedemptionCodeChange={setRedemptionCode}
-                    onRedeem={handleRedeem}
-                    redeeming={redeeming}
-                    topupLink={topupInfo?.topup_link}
-                    loading={topupLoading}
-                    priceRatio={(status?.price as number) || 1}
-                    usdExchangeRate={effectiveUsdExchangeRate}
-                    onOpenBilling={() => setBillingDialogOpen(true)}
-                    creemProducts={topupInfo?.creem_products}
-                    enableCreemTopup={topupInfo?.enable_creem_topup}
-                    onCreemProductSelect={handleCreemProductSelect}
-                    enableWaffoTopup={topupInfo?.enable_waffo_topup}
-                    waffoPayMethods={topupInfo?.waffo_pay_methods}
-                    waffoMinTopup={topupInfo?.waffo_min_topup}
-                    onWaffoMethodSelect={handleWaffoMethodSelect}
-                    enableWaffoPancakeTopup={
-                      topupInfo?.enable_waffo_pancake_topup
+            <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start'>
+              <div className='min-w-0'>
+                {showSubscriptionPanel ? (
+                  <Tabs
+                    value={activeWalletTab}
+                    onValueChange={(value) =>
+                      setActiveWalletTab(value as 'subscription' | 'topup')
                     }
-                  />
-                </div>
+                  >
+                    <TabsList className='h-10 w-full justify-start rounded-lg p-1 sm:w-auto'>
+                      <TabsTrigger value='subscription' className='px-4'>
+                        {t('Subscription Plans')}
+                      </TabsTrigger>
+                      <TabsTrigger value='topup' className='px-4'>
+                        {t('Recharge')}
+                      </TabsTrigger>
+                    </TabsList>
 
+                    <TabsContent
+                      value='subscription'
+                      className='mt-3 outline-none'
+                    >
+                      <div className='max-w-3xl'>
+                        <SubscriptionPlansCard
+                          topupInfo={topupInfo}
+                          onAvailabilityChange={
+                            handleSubscriptionAvailabilityChange
+                          }
+                        />
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value='topup' className='mt-3 outline-none'>
+                      <div id='wallet-add-funds' className='scroll-mt-4'>
+                        {rechargeForm}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                ) : (
+                  <div id='wallet-add-funds' className='scroll-mt-4'>
+                    {rechargeForm}
+                  </div>
+                )}
+              </div>
+
+              <div className='min-w-0 xl:sticky xl:top-4'>
                 <AffiliateRewardsCard
                   user={user}
                   affiliateLink={affiliateLink}
@@ -299,15 +351,6 @@ export function Wallet(props: WalletProps) {
                   loading={affiliateLoading}
                 />
               </div>
-
-              {showSubscriptionPanel && (
-                <div className='min-w-0 xl:sticky xl:top-4'>
-                  <SubscriptionPlansCard
-                    topupInfo={topupInfo}
-                    onAvailabilityChange={handleSubscriptionAvailabilityChange}
-                  />
-                </div>
-              )}
             </div>
           </div>
         </SectionPageLayout.Content>

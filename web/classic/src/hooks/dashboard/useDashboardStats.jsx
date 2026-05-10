@@ -30,7 +30,10 @@ import {
   IconSend,
 } from '@douyinfe/semi-icons';
 import { renderQuota } from '../../helpers';
-import { createSectionTitle } from '../../helpers/dashboard';
+import {
+  createSectionTitle,
+  formatCompactTokens,
+} from '../../helpers/dashboard';
 
 export const useDashboardStats = (
   userState,
@@ -102,7 +105,7 @@ export const useDashboardStats = (
           },
           {
             title: t('统计Tokens'),
-            value: isNaN(consumeTokens) ? 0 : consumeTokens.toLocaleString(),
+            value: formatCompactTokens(consumeTokens),
             icon: <IconTextStroked />,
             avatarColor: 'pink',
             trendData: trendData.tokens,
@@ -124,7 +127,7 @@ export const useDashboardStats = (
           },
           {
             title: t('平均TPM'),
-            value: performanceMetrics.avgTPM,
+            value: formatCompactTokens(performanceMetrics.avgTPM),
             icon: <IconTypograph />,
             avatarColor: 'orange',
             trendData: trendData.tpm,

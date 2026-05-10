@@ -33,9 +33,11 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { parseQuotaFromDollars } from '@/lib/format'
 import { createPlan, updatePlan, getGroups } from '../api'
 import { getDurationUnitOptions, getResetPeriodOptions } from '../constants'
 import {
+  formatInternalQuota,
   getPlanFormSchema,
   PLAN_FORM_DEFAULTS,
   planToFormValues,
@@ -85,6 +87,10 @@ export function SubscriptionsMutateDrawer({
 
   const durationUnit = form.watch('duration_unit')
   const resetPeriod = form.watch('quota_reset_period')
+  const quotaDisplayAmount = form.watch('total_amount')
+  const quotaInternalUnits = parseQuotaFromDollars(
+    Number(quotaDisplayAmount || 0)
+  )
 
   const onSubmit = async (values: PlanFormValues) => {
     setIsSubmitting(true)
@@ -210,11 +216,12 @@ export function SubscriptionsMutateDrawer({
                   name='total_amount'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Total Quota')}</FormLabel>
+                      <FormLabel>{t('Quota Amount')}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
                           type='number'
+                          step='0.01'
                           min={0}
                           onChange={(e) =>
                             field.onChange(parseFloat(e.target.value) || 0)
@@ -222,7 +229,12 @@ export function SubscriptionsMutateDrawer({
                         />
                       </FormControl>
                       <FormDescription>
-                        {t('0 means unlimited')}
+                        {t(
+                          'Enter the usable quota in the current display unit. 0 means unlimited.'
+                        )}{' '}
+                        {quotaInternalUnits > 0
+                          ? `${t('Internal quota units')}: ${formatInternalQuota(quotaInternalUnits)}`
+                          : ''}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

@@ -147,6 +147,29 @@ export const createFormField = (Component, props, FORM_FIELD_PROPS) => (
   <Component {...FORM_FIELD_PROPS} {...props} />
 );
 
+export const formatCompactTokens = (value) => {
+  const tokens = Number(value || 0);
+  if (!Number.isFinite(tokens) || tokens === 0) return '0';
+  const sign = tokens < 0 ? '-' : '';
+  const abs = Math.abs(tokens);
+  if (abs > 0 && abs < 1) {
+    return `${sign}${abs.toFixed(3).replace(/\.0+$|(\.\d*[1-9])0+$/, '$1')}`;
+  }
+  const units = [
+    { value: 1000000000000, suffix: 'T' },
+    { value: 1000000000, suffix: 'B' },
+    { value: 1000000, suffix: 'M' },
+    { value: 1000, suffix: 'K' },
+  ];
+  const unit = units.find((item) => abs >= item.value);
+  if (!unit) return `${sign}${Math.round(abs)}`;
+  const compact = abs / unit.value;
+  const digits = compact >= 100 ? 0 : compact >= 10 ? 1 : 2;
+  return `${sign}${compact
+    .toFixed(digits)
+    .replace(/\.0+$|(\.\d*[1-9])0+$/, '$1')}${unit.suffix}`;
+};
+
 // ========== 操作处理函数 ==========
 export const handleCopyUrl = async (url, t) => {
   if (await copy(url)) {

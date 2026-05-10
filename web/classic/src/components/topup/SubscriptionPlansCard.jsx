@@ -457,7 +457,7 @@ const SubscriptionPlansCard = ({
                           </div>
                         )}
                         <div className='text-xs text-gray-500 mb-2'>
-                          {t('总额度')}:{' '}
+                          {t('额度金额')}:{' '}
                           {totalAmount > 0 ? (
                             <Tooltip
                               content={`${t('内部额度单位')}：${formatInternalQuota(usedAmount)}/${formatInternalQuota(totalAmount)} · ${t('剩余')} ${formatInternalQuota(remainAmount)}`}
@@ -507,8 +507,8 @@ const SubscriptionPlansCard = ({
                 const limitLabel = limit > 0 ? `${t('限购')} ${limit}` : null;
                 const totalLabel =
                   totalAmount > 0
-                    ? `${t('总额度')}: ${renderQuota(totalAmount)}`
-                    : `${t('总额度')}: ${t('不限')}`;
+                    ? `${t('额度金额')}: ${renderQuota(totalAmount)}`
+                    : `${t('额度金额')}: ${t('不限')}`;
                 const totalLabelWithUnit =
                   totalAmount > 0
                     ? `${totalLabel} (${t('内部额度单位')}：${formatInternalQuota(totalAmount)})`

@@ -279,6 +279,26 @@ const formatCodexTimestamp = (value) => {
   return timestamp2string(timestamp);
 };
 
+const parseChannelOtherInfo = (raw) => {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    return {};
+  }
+};
+
+const formatChannelStatusTooltip = (record, t) => {
+  const otherInfo = parseChannelOtherInfo(record?.other_info);
+  const reason = String(otherInfo?.status_reason || '').trim();
+  const time = formatCodexTimestamp(otherInfo?.status_time);
+  if (!reason && time === '-') {
+    return t('暂无自动禁用详情');
+  }
+  return `${t('原因：')}${reason || t('暂无')} ${t('，时间：')}${time}`;
+};
+
 const getCodexWindowPercent = (summary, keys) => {
   for (const key of keys) {
     const value = summary?.[key]?.used_percent;
@@ -647,19 +667,9 @@ export const getChannelsColumns = ({
       dataIndex: 'status',
       render: (text, record, index) => {
         if (text === 3) {
-          if (record.other_info === '') {
-            record.other_info = '{}';
-          }
-          let otherInfo = JSON.parse(record.other_info);
-          let reason = otherInfo['status_reason'];
-          let time = otherInfo['status_time'];
           return (
             <div>
-              <Tooltip
-                content={
-                  t('原因：') + reason + t('，时间：') + timestamp2string(time)
-                }
-              >
+              <Tooltip content={formatChannelStatusTooltip(record, t)}>
                 {renderStatus(text, record.channel_info, t)}
               </Tooltip>
             </div>

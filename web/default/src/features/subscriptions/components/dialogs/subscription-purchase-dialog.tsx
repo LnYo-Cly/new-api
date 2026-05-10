@@ -213,7 +213,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
             )}
             <div className='flex items-center justify-between gap-4'>
               <span className='text-muted-foreground text-sm'>
-                {t('Total Quota')}
+                {t('Quota Amount')}
               </span>
               <span className='flex min-w-0 items-center gap-1 text-right text-sm'>
                 <Package className='h-3.5 w-3.5' />
