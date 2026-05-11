@@ -348,6 +348,9 @@ func UpdateOption(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if option.Key == "theme.frontend" {
+		common.SetFrontendThemeCookie(c.Writer, option.Value.(string))
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
