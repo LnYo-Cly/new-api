@@ -36,32 +36,38 @@ export function Profile() {
           </CardStaggerItem>
 
           <CardStaggerItem>
-            <div className='grid gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.46fr)] xl:items-start'>
-              <div className='space-y-4 sm:space-y-6'>
-                <ProfileSettingsCard
-                  profile={profile}
-                  loading={loading}
-                  onProfileUpdate={refreshProfile}
-                />
-                <LanguagePreferencesCard
-                  profile={profile}
-                  onProfileUpdate={refreshProfile}
-                />
-                <ProfileSecurityCard profile={profile} loading={loading} />
+            <div className='space-y-4 sm:space-y-6'>
+              <div className='grid gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)] xl:items-start'>
+                <div className='space-y-4 sm:space-y-6'>
+                  <ProfileSettingsCard
+                    profile={profile}
+                    loading={loading}
+                    onProfileUpdate={refreshProfile}
+                  />
+                  <LanguagePreferencesCard
+                    profile={profile}
+                    onProfileUpdate={refreshProfile}
+                  />
+                </div>
+
+                <div className='space-y-4 sm:space-y-6 xl:sticky xl:top-6'>
+                  {checkinEnabled && (
+                    <CheckinCalendarCard
+                      checkinEnabled={checkinEnabled}
+                      turnstileEnabled={turnstileEnabled}
+                      turnstileSiteKey={turnstileSiteKey}
+                    />
+                  )}
+                  <ProfileSecurityCard profile={profile} loading={loading} />
+                </div>
               </div>
 
-              <div className='space-y-4 sm:space-y-6 xl:sticky xl:top-6'>
-                {checkinEnabled && (
-                  <CheckinCalendarCard
-                    checkinEnabled={checkinEnabled}
-                    turnstileEnabled={turnstileEnabled}
-                    turnstileSiteKey={turnstileSiteKey}
-                  />
-                )}
-                {canConfigureSidebar && <SidebarModulesCard />}
+              <div className='grid gap-4 sm:gap-5 2xl:grid-cols-2'>
                 <PasskeyCard loading={loading} />
                 <TwoFACard loading={loading} />
               </div>
+
+              {canConfigureSidebar && <SidebarModulesCard />}
             </div>
           </CardStaggerItem>
         </CardStaggerContainer>
