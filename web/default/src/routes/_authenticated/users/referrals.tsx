@@ -1,10 +1,10 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useAuthStore } from '@/stores/auth-store'
-import { ROLE } from '@/lib/roles'
-import { Users } from '@/features/users'
+import { UserReferrals } from '@/features/users/referrals'
 import { usersSearchSchema } from '@/features/users/search-schema'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
-export const Route = createFileRoute('/_authenticated/users/')({
+export const Route = createFileRoute('/_authenticated/users/referrals')({
   beforeLoad: () => {
     const { auth } = useAuthStore.getState()
 
@@ -15,5 +15,5 @@ export const Route = createFileRoute('/_authenticated/users/')({
     }
   },
   validateSearch: usersSearchSchema,
-  component: Users,
+  component: UserReferrals,
 })

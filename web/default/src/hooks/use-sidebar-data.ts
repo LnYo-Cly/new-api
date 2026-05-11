@@ -6,6 +6,7 @@ import {
   Wallet,
   Box,
   Users,
+  Share2,
   Ticket,
   User,
   Command,
@@ -92,6 +93,11 @@ export function useSidebarData(): SidebarData {
             icon: Wallet,
           },
           {
+            title: t('Referral Program'),
+            url: '/wallet/referral',
+            icon: Share2,
+          },
+          {
             title: t('Profile'),
             url: '/profile',
             icon: User,
@@ -116,6 +122,11 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
+          },
+          {
+            title: t('Referral Management'),
+            url: '/users/referrals',
+            icon: Share2,
           },
           {
             title: t('Redemption Codes'),

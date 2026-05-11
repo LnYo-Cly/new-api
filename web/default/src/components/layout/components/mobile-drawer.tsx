@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { X, User, Wallet, LogOut } from 'lucide-react'
+import { X, User, Wallet, LogOut, Share2 } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import type { AuthUser } from '@/stores/auth-store'
@@ -109,6 +109,15 @@ function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
         >
           <Wallet className='size-4' />
           {t('Wallet')}
+        </Link>
+
+        <Link
+          to='/wallet/referral'
+          onClick={onNavigate}
+          className='text-primary/60 hover:text-primary/80 border-border flex items-center gap-2.5 border-b p-2.5 transition-colors'
+        >
+          <Share2 className='size-4' />
+          {t('Referral Program')}
         </Link>
 
         {/* Sign out - consistent style */}

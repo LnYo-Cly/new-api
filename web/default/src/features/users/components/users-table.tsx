@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getRouteApi } from '@tanstack/react-router'
 import {
   type SortingState,
   type VisibilityState,
@@ -15,7 +14,10 @@ import {
 import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useTableUrlState } from '@/hooks/use-table-url-state'
+import {
+  type NavigateFn,
+  useTableUrlState,
+} from '@/hooks/use-table-url-state'
 import {
   DISABLED_ROW_DESKTOP,
   DISABLED_ROW_MOBILE,
@@ -33,20 +35,36 @@ import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useUsersColumns } from './users-columns'
 import { useUsers } from './users-provider'
 
-const route = getRouteApi('/_authenticated/users/')
+interface UsersTableProps {
+  search: Record<string, unknown>
+  navigate: NavigateFn
+  initialColumnVisibility?: VisibilityState
+  searchPlaceholder?: string
+  emptyTitle?: string
+  emptyDescription?: string
+}
 
 function isDisabledUserRow(user: User) {
   return isUserDeleted(user) || user.status === USER_STATUS.DISABLED
 }
 
-export function UsersTable() {
+export function UsersTable({
+  search,
+  navigate,
+  initialColumnVisibility,
+  searchPlaceholder,
+  emptyTitle,
+  emptyDescription,
+}: UsersTableProps) {
   const { t } = useTranslation()
   const columns = useUsersColumns()
   const { refreshTrigger } = useUsers()
   const isMobile = useMediaQuery('(max-width: 640px)')
   const [rowSelection, setRowSelection] = useState({})
   const [sorting, setSorting] = useState<SortingState>([])
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+    () => initialColumnVisibility ?? {}
+  )
 
   const {
     globalFilter,
@@ -57,8 +75,8 @@ export function UsersTable() {
     onPaginationChange,
     ensurePageInRange,
   } = useTableUrlState({
-    search: route.useSearch(),
-    navigate: route.useNavigate(),
+    search,
+    navigate,
     pagination: { defaultPage: 1, defaultPageSize: isMobile ? 10 : 20 },
     globalFilter: { enabled: true, key: 'filter' },
     columnFilters: [
@@ -67,6 +85,10 @@ export function UsersTable() {
       { columnId: 'group', searchKey: 'group', type: 'string' },
     ],
   })
+
+  useEffect(() => {
+    setColumnVisibility(initialColumnVisibility ?? {})
+  }, [initialColumnVisibility])
 
   // Fetch data with React Query
   const { data, isLoading, isFetching, refetch } = useQuery({
@@ -158,13 +180,15 @@ export function UsersTable() {
       isLoading={isLoading}
       isFetching={isFetching}
       totalRows={data?.total || 0}
-      emptyTitle={t('No Users Found')}
-      emptyDescription={t(
-        'No users available. Try adjusting your search or filters.'
-      )}
+      emptyTitle={emptyTitle ?? t('No Users Found')}
+      emptyDescription={
+        emptyDescription ??
+        t('No users available. Try adjusting your search or filters.')
+      }
       skeletonKeyPrefix='users-skeleton'
       toolbarProps={{
-        searchPlaceholder: t('Filter by username, name or email...'),
+        searchPlaceholder:
+          searchPlaceholder ?? t('Filter by username, name or email...'),
         onSearch: () => {
           void refetch()
         },

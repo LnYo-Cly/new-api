@@ -1,3 +1,4 @@
+import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
 import { UsersDeleteDialog } from './components/users-delete-dialog'
@@ -6,9 +7,13 @@ import { UsersPrimaryButtons } from './components/users-primary-buttons'
 import { UsersProvider, useUsers } from './components/users-provider'
 import { UsersTable } from './components/users-table'
 
+const usersRoute = getRouteApi('/_authenticated/users/')
+
 function UsersContent() {
   const { t } = useTranslation()
   const { open, setOpen, currentRow } = useUsers()
+  const search = usersRoute.useSearch()
+  const navigate = usersRoute.useNavigate()
 
   return (
     <>
@@ -21,7 +26,7 @@ function UsersContent() {
           <UsersPrimaryButtons />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <UsersTable />
+          <UsersTable search={search} navigate={navigate} />
         </SectionPageLayout.Content>
       </SectionPageLayout>
 

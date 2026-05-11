@@ -1,20 +1,21 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Link } from '@tanstack/react-router'
+import { Share2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getSelf } from '@/lib/api'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { SectionPageLayout } from '@/components/layout'
+import { Button } from '@/components/ui/button'
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs'
-import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
-import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
@@ -22,7 +23,6 @@ import { DEFAULT_DISCOUNT_RATE } from './constants'
 import {
   useTopupInfo,
   usePayment,
-  useAffiliate,
   useRedemption,
   useCreemPayment,
   useWaffoPayment,
@@ -54,7 +54,6 @@ export function Wallet(props: WalletProps) {
     useState<PaymentMethod>()
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
-  const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [redemptionCode, setRedemptionCode] = useState('')
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
@@ -82,12 +81,6 @@ export function Wallet(props: WalletProps) {
     calculatePaymentAmount,
     processPayment,
   } = usePayment()
-  const {
-    affiliateLink,
-    loading: affiliateLoading,
-    transferQuota,
-    transferring,
-  } = useAffiliate()
   const { redeeming, redeemCode } = useRedemption()
   const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
   const { processWaffoPayment } = useWaffoPayment()
@@ -198,15 +191,6 @@ export function Wallet(props: WalletProps) {
     }
   }
 
-  // Handle transfer
-  const handleTransfer = async (amount: number) => {
-    const success = await transferQuota(amount)
-    if (success) {
-      await fetchUser()
-    }
-    return success
-  }
-
   // Handle Creem product selection
   const handleCreemProductSelect = (product: CreemProduct) => {
     setSelectedCreemProduct(product)
@@ -291,6 +275,12 @@ export function Wallet(props: WalletProps) {
     <>
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
+        <SectionPageLayout.Actions>
+          <Button variant='outline' render={<Link to='/wallet/referral' />}>
+            <Share2 className='size-4' />
+            {t('Referral Program')}
+          </Button>
+        </SectionPageLayout.Actions>
         <SectionPageLayout.Description>
           {t('Manage your balance and payment methods')}
         </SectionPageLayout.Description>
@@ -298,59 +288,43 @@ export function Wallet(props: WalletProps) {
           <div className='mx-auto w-full max-w-[1440px] space-y-4 sm:space-y-5'>
             <WalletStatsCard user={user} loading={userLoading} />
 
-            <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start'>
-              <div className='min-w-0'>
-                {showSubscriptionPanel ? (
-                  <Tabs
-                    value={activeWalletTab}
-                    onValueChange={(value) =>
-                      setActiveWalletTab(value as 'subscription' | 'topup')
-                    }
-                  >
-                    <TabsList className='h-10 w-full justify-start rounded-lg p-1 sm:w-auto'>
-                      <TabsTrigger value='subscription' className='px-4'>
-                        {t('Subscription Plans')}
-                      </TabsTrigger>
-                      <TabsTrigger value='topup' className='px-4'>
-                        {t('Recharge')}
-                      </TabsTrigger>
-                    </TabsList>
+            <div className='min-w-0'>
+              {showSubscriptionPanel ? (
+                <Tabs
+                  value={activeWalletTab}
+                  onValueChange={(value) =>
+                    setActiveWalletTab(value as 'subscription' | 'topup')
+                  }
+                >
+                  <TabsList className='h-10 w-full justify-start rounded-lg p-1 sm:w-auto'>
+                    <TabsTrigger value='subscription' className='px-4'>
+                      {t('Subscription Plans')}
+                    </TabsTrigger>
+                    <TabsTrigger value='topup' className='px-4'>
+                      {t('Recharge')}
+                    </TabsTrigger>
+                  </TabsList>
 
-                    <TabsContent
-                      value='subscription'
-                      className='mt-3 outline-none'
-                    >
-                      <div className='max-w-3xl'>
-                        <SubscriptionPlansCard
-                          topupInfo={topupInfo}
-                          onAvailabilityChange={
-                            handleSubscriptionAvailabilityChange
-                          }
-                        />
-                      </div>
-                    </TabsContent>
+                  <TabsContent value='subscription' className='mt-3 outline-none'>
+                    <div className='max-w-3xl'>
+                      <SubscriptionPlansCard
+                        topupInfo={topupInfo}
+                        onAvailabilityChange={handleSubscriptionAvailabilityChange}
+                      />
+                    </div>
+                  </TabsContent>
 
-                    <TabsContent value='topup' className='mt-3 outline-none'>
-                      <div id='wallet-add-funds' className='scroll-mt-4'>
-                        {rechargeForm}
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-                ) : (
-                  <div id='wallet-add-funds' className='scroll-mt-4'>
-                    {rechargeForm}
-                  </div>
-                )}
-              </div>
-
-              <div className='min-w-0 xl:sticky xl:top-4'>
-                <AffiliateRewardsCard
-                  user={user}
-                  affiliateLink={affiliateLink}
-                  onTransfer={() => setTransferDialogOpen(true)}
-                  loading={affiliateLoading}
-                />
-              </div>
+                  <TabsContent value='topup' className='mt-3 outline-none'>
+                    <div id='wallet-add-funds' className='scroll-mt-4'>
+                      {rechargeForm}
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              ) : (
+                <div id='wallet-add-funds' className='scroll-mt-4'>
+                  {rechargeForm}
+                </div>
+              )}
             </div>
           </div>
         </SectionPageLayout.Content>
@@ -367,14 +341,6 @@ export function Wallet(props: WalletProps) {
         processing={processing || pancakeProcessing}
         discountRate={getDiscountRate()}
         usdExchangeRate={effectiveUsdExchangeRate}
-      />
-
-      <TransferDialog
-        open={transferDialogOpen}
-        onOpenChange={setTransferDialogOpen}
-        onConfirm={handleTransfer}
-        availableQuota={user?.aff_quota ?? 0}
-        transferring={transferring}
       />
 
       <BillingHistoryDialog
