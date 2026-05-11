@@ -216,19 +216,27 @@ export function SubscriptionPlansCard({
 
   if (loading) {
     return (
-      <Card className='gap-0 overflow-hidden rounded-lg py-0 shadow-xs'>
-        <CardHeader className='border-b px-4 py-3 !pb-3'>
-          <Skeleton className='h-6 w-32' />
-        </CardHeader>
-        <CardContent className='space-y-3 p-4'>
-          <Skeleton className='h-16 w-full' />
-          <div className='grid grid-cols-1 gap-3'>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className='h-36 w-full' />
+      <div className='space-y-4'>
+        <Card className='gap-0 overflow-hidden rounded-lg py-0 shadow-xs'>
+          <CardHeader className='border-b px-4 py-3 !pb-3'>
+            <Skeleton className='h-6 w-32' />
+          </CardHeader>
+          <CardContent className='space-y-3 p-4'>
+            <Skeleton className='h-24 w-full' />
+            <Skeleton className='h-32 w-full' />
+          </CardContent>
+        </Card>
+        <Card className='gap-0 overflow-hidden rounded-lg py-0 shadow-xs'>
+          <CardHeader className='border-b px-4 py-3 !pb-3'>
+            <Skeleton className='h-6 w-32' />
+          </CardHeader>
+          <CardContent className='grid grid-cols-1 gap-3 p-4 md:grid-cols-2'>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className='h-56 w-full rounded-lg' />
             ))}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 
@@ -239,12 +247,12 @@ export function SubscriptionPlansCard({
   return (
     <>
       <TitledCard
-        title={t('Subscription Plans')}
-        description={t('Purchase a plan to enjoy model benefits')}
+        title={t('Current Subscription')}
+        description={t('Review your active and expired subscriptions separately from the plans below.')}
         icon={<Crown className='h-4 w-4' />}
         className='rounded-lg shadow-xs'
         headerClassName='px-4 py-3 !pb-3 sm:px-4 sm:py-3 sm:!pb-3'
-        contentClassName='space-y-5 p-4 sm:p-4'
+        contentClassName='space-y-4 p-4 sm:p-4'
         titleClassName='text-base sm:text-lg'
       >
         <div className='rounded-xl border bg-muted/10 p-3 sm:p-4'>
@@ -375,16 +383,7 @@ export function SubscriptionPlansCard({
           {hasAny && (
             <>
               <Separator className='my-4' />
-              <div className='space-y-2'>
-                <div>
-                  <div className='text-sm font-medium'>
-                    {t('My Subscriptions')}
-                  </div>
-                  <p className='text-muted-foreground text-xs'>
-                    {t('Review your active and expired subscriptions separately from the plans below.')}
-                  </p>
-                </div>
-                <div className='max-h-52 space-y-2 overflow-y-auto pr-1'>
+              <div className='max-h-80 space-y-2 overflow-y-auto pr-1'>
                   {allSubscriptions.map((sub) => {
                     const subscription = sub.subscription
                     const totalAmount = Number(subscription?.amount_total || 0)
@@ -492,32 +491,29 @@ export function SubscriptionPlansCard({
                       </div>
                     )
                   })}
-                </div>
               </div>
             </>
           )}
 
           {!hasAny && (
-            <p className='text-muted-foreground mt-2 text-xs'>
-              {t('Purchase a plan to enjoy model benefits')}
-            </p>
-          )}
-        </div>
+          <p className='text-muted-foreground mt-2 text-xs'>
+            {t('No subscription records')}
+          </p>
+        )}
+      </div>
+      </TitledCard>
 
-        {/* Available plans grid */}
-        {plans.length > 0 ? (
-          <div className='rounded-xl border bg-background/70 p-3 sm:p-4'>
-            <div className='mb-3 flex items-center justify-between gap-2'>
-              <div>
-                <div className='text-sm font-medium'>
-                  {t('All Plans')}
-                </div>
-                <p className='text-muted-foreground text-xs'>
-                  {t('Choose a system plan to upgrade your access.')}
-                </p>
-              </div>
-            </div>
-            <div className='grid grid-cols-1 gap-3'>
+      {plans.length > 0 ? (
+        <TitledCard
+          title={t('Subscription Plans')}
+          description={t('Choose a system plan to upgrade your access.')}
+          icon={<Crown className='h-4 w-4' />}
+          className='rounded-lg shadow-xs'
+          headerClassName='px-4 py-3 !pb-3 sm:px-4 sm:py-3 sm:!pb-3'
+          contentClassName='p-4 sm:p-4'
+          titleClassName='text-base sm:text-lg'
+        >
+          <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
             {plans.map((p, index) => {
               const plan = p?.plan
               if (!plan) return null
@@ -546,7 +542,7 @@ export function SubscriptionPlansCard({
                 <Card
                   key={plan.id}
                   className={cn(
-                    'hover:border-foreground/40 rounded-lg py-0 transition-colors',
+                    'hover:border-foreground/40 h-full rounded-lg py-0 transition-colors',
                     isPopular && 'border-primary/60 bg-primary/5'
                   )}
                 >
@@ -625,14 +621,9 @@ export function SubscriptionPlansCard({
                 </Card>
               )
             })}
-            </div>
           </div>
-        ) : (
-          <p className='text-muted-foreground py-4 text-center text-sm'>
-            {t('No plans available')}
-          </p>
-        )}
-      </TitledCard>
+        </TitledCard>
+      ) : null}
 
       <SubscriptionPurchaseDialog
         open={purchaseOpen}
