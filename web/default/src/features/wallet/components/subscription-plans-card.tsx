@@ -244,11 +244,10 @@ export function SubscriptionPlansCard({
         icon={<Crown className='h-4 w-4' />}
         className='rounded-lg shadow-xs'
         headerClassName='px-4 py-3 !pb-3 sm:px-4 sm:py-3 sm:!pb-3'
-        contentClassName='space-y-3 p-4 sm:p-4'
+        contentClassName='space-y-5 p-4 sm:p-4'
         titleClassName='text-base sm:text-lg'
       >
-        {/* My subscriptions & billing preference */}
-        <div className='bg-muted/15 rounded-lg border p-3'>
+        <div className='rounded-xl border bg-muted/10 p-3 sm:p-4'>
           <div className='flex flex-wrap items-center justify-between gap-2.5 sm:gap-3'>
             <div className='flex min-w-0 flex-wrap items-center gap-2'>
               <span className='text-sm font-medium'>
@@ -375,115 +374,125 @@ export function SubscriptionPlansCard({
 
           {hasAny && (
             <>
-              <Separator className='my-3' />
-              <div className='max-h-52 space-y-2 overflow-y-auto pr-1'>
-                {allSubscriptions.map((sub) => {
-                  const subscription = sub.subscription
-                  const totalAmount = Number(subscription?.amount_total || 0)
-                  const usedAmount = Number(subscription?.amount_used || 0)
-                  const remainAmount =
-                    totalAmount > 0 ? Math.max(0, totalAmount - usedAmount) : 0
-                  const planTitle =
-                    planTitleMap.get(subscription?.plan_id) || ''
-                  const remainDays = getRemainingDays(sub)
-                  const usagePercent = getUsagePercent(sub)
-                  const now = Date.now() / 1000
-                  const isExpired = (subscription?.end_time || 0) < now
-                  const isCancelled = subscription?.status === 'cancelled'
-                  const isActive =
-                    subscription?.status === 'active' && !isExpired
+              <Separator className='my-4' />
+              <div className='space-y-2'>
+                <div>
+                  <div className='text-sm font-medium'>
+                    {t('My Subscriptions')}
+                  </div>
+                  <p className='text-muted-foreground text-xs'>
+                    {t('Review your active and expired subscriptions separately from the plans below.')}
+                  </p>
+                </div>
+                <div className='max-h-52 space-y-2 overflow-y-auto pr-1'>
+                  {allSubscriptions.map((sub) => {
+                    const subscription = sub.subscription
+                    const totalAmount = Number(subscription?.amount_total || 0)
+                    const usedAmount = Number(subscription?.amount_used || 0)
+                    const remainAmount =
+                      totalAmount > 0 ? Math.max(0, totalAmount - usedAmount) : 0
+                    const planTitle =
+                      planTitleMap.get(subscription?.plan_id) || ''
+                    const remainDays = getRemainingDays(sub)
+                    const usagePercent = getUsagePercent(sub)
+                    const now = Date.now() / 1000
+                    const isExpired = (subscription?.end_time || 0) < now
+                    const isCancelled = subscription?.status === 'cancelled'
+                    const isActive =
+                      subscription?.status === 'active' && !isExpired
 
-                  return (
-                    <div
-                      key={subscription?.id}
-                      className='bg-background rounded-lg border p-3 text-xs'
-                    >
-                      <div className='flex flex-wrap items-center justify-between gap-2'>
-                        <div className='flex min-w-0 items-center gap-2'>
-                          <span className='truncate font-medium'>
-                            {planTitle
-                              ? `${planTitle} · ${t('Subscription')} #${subscription?.id}`
-                              : `${t('Subscription')} #${subscription?.id}`}
-                          </span>
-                          {isActive ? (
-                            <StatusBadge
-                              label={t('Active')}
-                              variant='success'
-                              copyable={false}
-                            />
-                          ) : isCancelled ? (
-                            <StatusBadge
-                              label={t('Cancelled')}
-                              variant='neutral'
-                              copyable={false}
-                            />
-                          ) : (
-                            <StatusBadge
-                              label={t('Expired')}
-                              variant='neutral'
-                              copyable={false}
-                            />
+                    return (
+                      <div
+                        key={subscription?.id}
+                        className='bg-background rounded-lg border p-3 text-xs'
+                      >
+                        <div className='flex flex-wrap items-center justify-between gap-2'>
+                          <div className='flex min-w-0 items-center gap-2'>
+                            <span className='truncate font-medium'>
+                              {planTitle
+                                ? `${planTitle} · ${t('Subscription')} #${subscription?.id}`
+                                : `${t('Subscription')} #${subscription?.id}`}
+                            </span>
+                            {isActive ? (
+                              <StatusBadge
+                                label={t('Active')}
+                                variant='success'
+                                copyable={false}
+                              />
+                            ) : isCancelled ? (
+                              <StatusBadge
+                                label={t('Cancelled')}
+                                variant='neutral'
+                                copyable={false}
+                              />
+                            ) : (
+                              <StatusBadge
+                                label={t('Expired')}
+                                variant='neutral'
+                                copyable={false}
+                              />
+                            )}
+                          </div>
+                          {isActive && (
+                            <span className='text-muted-foreground shrink-0'>
+                              {t('{{count}} days remaining', {
+                                count: remainDays,
+                              })}
+                            </span>
                           )}
                         </div>
-                        {isActive && (
-                          <span className='text-muted-foreground shrink-0'>
-                            {t('{{count}} days remaining', {
-                              count: remainDays,
-                            })}
-                          </span>
-                        )}
-                      </div>
-                      <div className='text-muted-foreground mt-1.5'>
-                        {isActive
-                          ? t('Until')
-                          : isCancelled
-                            ? t('Cancelled at')
-                            : t('Expired at')}{' '}
-                        {new Date(
-                          (subscription?.end_time || 0) * 1000
-                        ).toLocaleString()}
-                      </div>
-                      {isActive && (subscription?.next_reset_time ?? 0) > 0 && (
-                        <div className='text-muted-foreground mt-1'>
-                          {t('Next reset')}:{' '}
+                        <div className='text-muted-foreground mt-1.5'>
+                          {isActive
+                            ? t('Until')
+                            : isCancelled
+                              ? t('Cancelled at')
+                              : t('Expired at')}{' '}
                           {new Date(
-                            subscription!.next_reset_time! * 1000
+                            (subscription?.end_time || 0) * 1000
                           ).toLocaleString()}
                         </div>
-                      )}
-                      <div className='text-muted-foreground mt-1'>
-                        {t('Quota Amount')}:{' '}
-                        {totalAmount > 0 ? (
-                          <Tooltip>
-                            <TooltipTrigger
-                              render={<span className='cursor-help' />}
-                            >
-                              {formatQuota(usedAmount)}/
-                              {formatQuota(totalAmount)} · {t('Remaining')}{' '}
-                              {formatQuota(remainAmount)}
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {t('Internal quota units')}:{' '}
-                              {formatInternalQuota(usedAmount)}/
-                              {formatInternalQuota(totalAmount)} ·{' '}
-                              {t('Remaining')} {remainAmount}
-                            </TooltipContent>
-                          </Tooltip>
-                        ) : (
-                          t('Unlimited')
+                        {isActive && (subscription?.next_reset_time ?? 0) > 0 && (
+                          <div className='text-muted-foreground mt-1'>
+                            {t('Next reset')}:{' '}
+                            {new Date(
+                              subscription!.next_reset_time! * 1000
+                            ).toLocaleString()}
+                          </div>
                         )}
-                        {totalAmount > 0 && (
-                          <span className='ml-2'>
-                            {t('Used')} {usagePercent}%
-                          </span>
+                        <div className='text-muted-foreground mt-1'>
+                          {t('Quota Amount')}:{' '}
+                          {totalAmount > 0 ? (
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={<span className='cursor-help' />}
+                              >
+                                {formatQuota(usedAmount)}/
+                                {formatQuota(totalAmount)} · {t('Remaining')}{' '}
+                                {formatQuota(remainAmount)}
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {t('Internal quota units')}:{' '}
+                                {formatInternalQuota(usedAmount)}/
+                                {formatInternalQuota(totalAmount)} ·{' '}
+                                {t('Remaining')} {remainAmount}
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            t('Unlimited')
+                          )}
+                          {totalAmount > 0 && (
+                            <span className='ml-2'>
+                              {t('Used')} {usagePercent}%
+                            </span>
+                          )}
+                        </div>
+                        {totalAmount > 0 && isActive && (
+                          <Progress value={usagePercent} className='mt-2 h-1.5' />
                         )}
                       </div>
-                      {totalAmount > 0 && isActive && (
-                        <Progress value={usagePercent} className='mt-2 h-1.5' />
-                      )}
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
             </>
           )}
@@ -497,7 +506,18 @@ export function SubscriptionPlansCard({
 
         {/* Available plans grid */}
         {plans.length > 0 ? (
-          <div className='grid grid-cols-1 gap-3'>
+          <div className='rounded-xl border bg-background/70 p-3 sm:p-4'>
+            <div className='mb-3 flex items-center justify-between gap-2'>
+              <div>
+                <div className='text-sm font-medium'>
+                  {t('All Plans')}
+                </div>
+                <p className='text-muted-foreground text-xs'>
+                  {t('Choose a system plan to upgrade your access.')}
+                </p>
+              </div>
+            </div>
+            <div className='grid grid-cols-1 gap-3'>
             {plans.map((p, index) => {
               const plan = p?.plan
               if (!plan) return null
@@ -605,6 +625,7 @@ export function SubscriptionPlansCard({
                 </Card>
               )
             })}
+            </div>
           </div>
         ) : (
           <p className='text-muted-foreground py-4 text-center text-sm'>
