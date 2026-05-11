@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"net/smtp"
 	"slices"
 	"strings"
@@ -33,6 +34,36 @@ func getSMTPAuth() smtp.Auth {
 	return smtp.PlainAuth("", SMTPAccount, SMTPToken, SMTPServer)
 }
 
+func sendWithSMTPClient(client *smtp.Client, auth smtp.Auth, from string, to []string, mail []byte) error {
+	defer client.Close()
+
+	if auth != nil {
+		if err := client.Auth(auth); err != nil {
+			return err
+		}
+	}
+
+	if err := client.Mail(from); err != nil {
+		return err
+	}
+	for _, receiver := range to {
+		if err := client.Rcpt(receiver); err != nil {
+			return err
+		}
+	}
+	w, err := client.Data()
+	if err != nil {
+		return err
+	}
+	if _, err = w.Write(mail); err != nil {
+		return err
+	}
+	if err = w.Close(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func SendEmail(subject string, receiver string, content string) error {
 	if SMTPFrom == "" { // for compatibility
 		SMTPFrom = SMTPAccount
@@ -56,7 +87,8 @@ func SendEmail(subject string, receiver string, content string) error {
 	addr := fmt.Sprintf("%s:%d", SMTPServer, SMTPPort)
 	to := strings.Split(receiver, ";")
 	var err error
-	if SMTPPort == 465 || SMTPSSLEnabled {
+
+	if SMTPPort == 465 {
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: true,
 			ServerName:         SMTPServer,
@@ -69,31 +101,24 @@ func SendEmail(subject string, receiver string, content string) error {
 		if err != nil {
 			return err
 		}
-		defer client.Close()
-		if err = client.Auth(auth); err != nil {
-			return err
-		}
-		if err = client.Mail(SMTPFrom); err != nil {
-			return err
-		}
-		receiverEmails := strings.Split(receiver, ";")
-		for _, receiver := range receiverEmails {
-			if err = client.Rcpt(receiver); err != nil {
-				return err
-			}
-		}
-		w, err := client.Data()
+		err = sendWithSMTPClient(client, auth, SMTPFrom, to, mail)
+	} else if SMTPPort == 587 || SMTPSSLEnabled {
+		conn, err := net.Dial("tcp", addr)
 		if err != nil {
 			return err
 		}
-		_, err = w.Write(mail)
+		client, err := smtp.NewClient(conn, SMTPServer)
 		if err != nil {
 			return err
 		}
-		err = w.Close()
-		if err != nil {
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: true,
+			ServerName:         SMTPServer,
+		}
+		if err = client.StartTLS(tlsConfig); err != nil {
 			return err
 		}
+		err = sendWithSMTPClient(client, auth, SMTPFrom, to, mail)
 	} else {
 		err = smtp.SendMail(addr, auth, SMTPFrom, to, mail)
 	}
