@@ -4,6 +4,7 @@ import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CopyButton } from '@/components/copy-button'
 import type { UserWalletData } from '../types'
@@ -38,6 +39,7 @@ export function AffiliateRewardsCard({
   }
 
   const hasRewards = (user?.aff_quota ?? 0) > 0
+  const hasAffiliateLink = affiliateLink.trim().length > 0
 
   return (
     <Card className='bg-muted/20 py-0'>
@@ -75,29 +77,40 @@ export function AffiliateRewardsCard({
           ))}
         </div>
 
-        <div className='flex items-center gap-2'>
-          <Input
-            value={affiliateLink}
-            readOnly
-            className='border-muted bg-background/70 h-9 min-w-0 flex-1 font-mono text-xs'
-          />
-          <CopyButton
-            value={affiliateLink}
-            variant='outline'
-            className='bg-background size-9 shrink-0'
-            iconClassName='size-4'
-            tooltip={t('Copy referral link')}
-            aria-label={t('Copy referral link')}
-          />
-          {hasRewards && (
-            <Button
-              onClick={onTransfer}
-              className='h-9 shrink-0 px-3'
-              size='sm'
-            >
-              {t('Transfer to Balance')}
-            </Button>
-          )}
+        <div className='space-y-2'>
+          <Label className='text-muted-foreground text-[11px] font-medium tracking-wider uppercase'>
+            {t('Your Referral Link')}
+          </Label>
+          <div className='flex items-center gap-2'>
+            <Input
+              value={affiliateLink}
+              readOnly
+              placeholder={
+                hasAffiliateLink
+                  ? undefined
+                  : t('Referral link will appear here')
+              }
+              className='border-muted bg-background/70 h-9 min-w-0 flex-1 font-mono text-xs'
+            />
+            <CopyButton
+              value={affiliateLink}
+              variant='outline'
+              className='bg-background size-9 shrink-0'
+              iconClassName='size-4'
+              tooltip={t('Copy referral link')}
+              aria-label={t('Copy referral link')}
+              disabled={!hasAffiliateLink}
+            />
+            {hasRewards && (
+              <Button
+                onClick={onTransfer}
+                className='h-9 shrink-0 px-3'
+                size='sm'
+              >
+                {t('Transfer to Balance')}
+              </Button>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

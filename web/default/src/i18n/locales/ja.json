@@ -4529,6 +4529,7 @@
     "Your GitHub OAuth Client Secret": "あなたのGitHub OAuthクライアントシークレット",
     "Your new backup codes are ready": "新しいバックアップコードの準備ができました",
     "Your Referral Link": "あなたの紹介リンク",
+    "Referral link will appear here": "紹介リンクがここに表示されます",
     "Your setup guide is collapsed so usage stays in focus.": "利用状況に集中できるよう、セットアップガイドを折りたたみました。",
     "Your system access token for API authentication. Keep it secure and don't share it with others.": "API認証用のシステムアクセストークンです。安全に保管し、他者と共有しないでください。",
     "Your Telegram Bot Token": "あなたのTelegramボットトークン",
