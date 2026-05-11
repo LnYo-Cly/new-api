@@ -103,7 +103,14 @@ jobs:
         uses: sigstore/cosign-installer@v3
 
       - name: Sign image with cosign
+        continue-on-error: true
         run: cosign sign --yes ghcr.io/${{ env.GHCR_REPOSITORY }}@${{ steps.build.outputs.digest }}
+
+      - name: Signing summary
+        if: always()
+        run: |
+          echo "### Cosign signing (${{ matrix.arch }})" >> $GITHUB_STEP_SUMMARY
+          echo "Signing is non-blocking. If this step fails, image publishing still succeeds." >> $GITHUB_STEP_SUMMARY
 
       - name: Image summary
         run: |
