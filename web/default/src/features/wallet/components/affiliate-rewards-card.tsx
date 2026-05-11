@@ -26,7 +26,7 @@ export function AffiliateRewardsCard({
   if (loading) {
     return (
       <Card className='bg-muted/20 py-0'>
-        <CardContent className='grid gap-4 p-3 sm:p-4 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,0.72fr)_minmax(320px,1.15fr)] lg:items-center'>
+        <CardContent className='space-y-4 p-3 sm:p-4'>
           <div>
             <Skeleton className='h-5 w-32' />
             <Skeleton className='mt-2 h-4 w-48' />
@@ -43,7 +43,7 @@ export function AffiliateRewardsCard({
 
   return (
     <Card className='bg-muted/20 py-0'>
-      <CardContent className='grid gap-3 p-3 sm:gap-4 sm:p-4 lg:grid-cols-[minmax(200px,1fr)_minmax(180px,0.65fr)_minmax(280px,1fr)] lg:items-center'>
+      <CardContent className='space-y-4 p-3 sm:p-4'>
         <div className='flex min-w-0 items-center gap-2.5'>
           <div className='bg-background flex size-8 shrink-0 items-center justify-center rounded-lg border'>
             <Share2 className='text-muted-foreground size-4' />
@@ -60,7 +60,7 @@ export function AffiliateRewardsCard({
           </div>
         </div>
 
-        <div className='grid grid-cols-3 gap-1.5 text-center'>
+        <div className='grid grid-cols-3 gap-2 rounded-xl border bg-background/60 p-3 text-center'>
           {[
             [t('Pending'), formatQuota(user?.aff_quota ?? 0)],
             [t('Total Earned'), formatQuota(user?.aff_history_quota ?? 0)],
@@ -81,7 +81,7 @@ export function AffiliateRewardsCard({
           <Label className='text-muted-foreground text-[11px] font-medium tracking-wider uppercase'>
             {t('Your Referral Link')}
           </Label>
-          <div className='flex items-center gap-2'>
+          <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
             <Input
               value={affiliateLink}
               readOnly
@@ -92,26 +92,50 @@ export function AffiliateRewardsCard({
               }
               className='border-muted bg-background/70 h-9 min-w-0 flex-1 font-mono text-xs'
             />
-            <CopyButton
-              value={affiliateLink}
-              variant='outline'
-              className='bg-background size-9 shrink-0'
-              iconClassName='size-4'
-              tooltip={t('Copy referral link')}
-              aria-label={t('Copy referral link')}
-              disabled={!hasAffiliateLink}
-            />
-            {hasRewards && (
-              <Button
-                onClick={onTransfer}
-                className='h-9 shrink-0 px-3'
-                size='sm'
-              >
-                {t('Transfer to Balance')}
-              </Button>
-            )}
+            <div className='flex items-center gap-2'>
+              <CopyButton
+                value={affiliateLink}
+                variant='outline'
+                className='bg-background size-9 shrink-0'
+                iconClassName='size-4'
+                tooltip={t('Copy referral link')}
+                aria-label={t('Copy referral link')}
+                disabled={!hasAffiliateLink}
+              />
+              {hasRewards && (
+                <Button
+                  onClick={onTransfer}
+                  className='h-9 flex-1 px-3 sm:flex-none'
+                  size='sm'
+                >
+                  {t('Transfer to Balance')}
+                </Button>
+              )}
+            </div>
           </div>
+          {!hasAffiliateLink && (
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'The invitation link will be available after the system generates your affiliate code.'
+              )}
+            </p>
+          )}
+          {hasAffiliateLink && !hasRewards && (
+            <p className='text-muted-foreground text-xs'>
+              {t('Share this link with friends. Rewards will appear here after they recharge.')}
+            </p>
+          )}
         </div>
+        {hasRewards && (
+          <div className='rounded-xl border bg-background/60 p-3'>
+            <div className='mb-2 text-xs font-medium'>
+              {t('Available referral rewards')}
+            </div>
+            <div className='text-lg font-semibold tabular-nums'>
+              {formatQuota(user?.aff_quota ?? 0)}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
