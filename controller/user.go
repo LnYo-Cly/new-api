@@ -29,6 +29,15 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+type registerRequest struct {
+	Username         string `json:"username"`
+	Password         string `json:"password"`
+	Email            string `json:"email"`
+	VerificationCode string `json:"verification_code"`
+	Aff              string `json:"aff"`
+	AffCode          string `json:"aff_code"`
+}
+
 func Login(c *gin.Context) {
 	if !common.PasswordLoginEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordLoginDisabled)
@@ -143,11 +152,17 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordRegisterDisabled)
 		return
 	}
-	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	var req registerRequest
+	err := common.DecodeJson(c.Request.Body, &req)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
+	}
+	user := model.User{
+		Username:         req.Username,
+		Password:         req.Password,
+		Email:            req.Email,
+		VerificationCode: req.VerificationCode,
 	}
 	if err := common.Validate.Struct(&user); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
@@ -173,7 +188,10 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserExists)
 		return
 	}
-	affCode := user.AffCode // this code is the inviter's code, not the user's own code
+	affCode := strings.TrimSpace(req.AffCode)
+	if affCode == "" {
+		affCode = strings.TrimSpace(req.Aff)
+	}
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
 		Username:    user.Username,
