@@ -285,7 +285,7 @@ export function Wallet(props: WalletProps) {
           {t('Manage your balance and payment methods')}
         </SectionPageLayout.Description>
         <SectionPageLayout.Content>
-          <div className='mx-auto w-full max-w-[1440px] space-y-4 sm:space-y-5'>
+          <div className='w-full space-y-4 sm:space-y-5'>
             <WalletStatsCard user={user} loading={userLoading} />
 
             <div className='min-w-0'>
@@ -306,7 +306,7 @@ export function Wallet(props: WalletProps) {
                   </TabsList>
 
                   <TabsContent value='subscription' className='mt-3 outline-none'>
-                    <div className='max-w-3xl'>
+                    <div className='w-full'>
                       <SubscriptionPlansCard
                         topupInfo={topupInfo}
                         onAvailabilityChange={handleSubscriptionAvailabilityChange}
