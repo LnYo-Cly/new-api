@@ -19,6 +19,70 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func shouldRetryResponsesWithoutTopP(resp *http.Response) bool {
+	if resp == nil || resp.StatusCode != http.StatusBadRequest || resp.Body == nil {
+		return false
+	}
+
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false
+	}
+	_ = resp.Body.Close()
+	resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+
+	var errResponse dto.GeneralErrorResponse
+	if err = common.Unmarshal(responseBody, &errResponse); err != nil {
+		return false
+	}
+
+	openAIError := errResponse.TryToOpenAIError()
+	if openAIError != nil {
+		code := strings.ToLower(strings.TrimSpace(common.Interface2String(openAIError.Code)))
+		param := strings.ToLower(strings.TrimSpace(openAIError.Param))
+		message := strings.ToLower(strings.TrimSpace(openAIError.Message))
+		if param == "top_p" && strings.Contains(message, "unsupported parameter") {
+			return true
+		}
+		if code == "unsupported_parameter" && strings.Contains(message, "top_p") {
+			return true
+		}
+	}
+
+	message := strings.ToLower(strings.TrimSpace(errResponse.ToMessage()))
+	return strings.Contains(message, "unsupported parameter") &&
+		strings.Contains(message, "top_p")
+}
+
+func buildResponsesCompatRequestBody(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, request *dto.GeneralOpenAIRequest, forceUpstreamStream bool) (io.Reader, *types.NewAPIError) {
+	responsesReq, err := service.ChatCompletionsRequestToResponsesRequest(request)
+	if err != nil {
+		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	if forceUpstreamStream {
+		responsesReq.Stream = common.GetPointer(true)
+	}
+	info.AppendRequestConversion(types.RelayFormatOpenAIResponses)
+
+	convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *responsesReq)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+	relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
+
+	jsonData, err := common.Marshal(convertedRequest)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+
+	jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+
+	return bytes.NewBuffer(jsonData), nil
+}
+
 func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) {
 	if info == nil || request == nil {
 		return
@@ -96,15 +160,6 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 		return nil, types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 	}
 
-	responsesReq, err := service.ChatCompletionsRequestToResponsesRequest(&overriddenChatReq)
-	if err != nil {
-		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
-	}
-	if forceUpstreamStream {
-		responsesReq.Stream = common.GetPointer(true)
-	}
-	info.AppendRequestConversion(types.RelayFormatOpenAIResponses)
-
 	savedRelayMode := info.RelayMode
 	savedRequestURLPath := info.RequestURLPath
 	savedIsStream := info.IsStream
@@ -120,23 +175,10 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 		info.IsStream = true
 	}
 
-	convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *responsesReq)
-	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	requestBody, newApiErr := buildResponsesCompatRequestBody(c, info, adaptor, &overriddenChatReq, forceUpstreamStream)
+	if newApiErr != nil {
+		return nil, newApiErr
 	}
-	relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
-
-	jsonData, err := common.Marshal(convertedRequest)
-	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-	}
-
-	jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
-	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-	}
-
-	var requestBody io.Reader = bytes.NewBuffer(jsonData)
 
 	var httpResp *http.Response
 	resp, err := adaptor.DoRequest(c, info, requestBody)
@@ -151,6 +193,25 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 
 	httpResp = resp.(*http.Response)
 	upstreamStream := info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
+	if httpResp.StatusCode != http.StatusOK {
+		if overriddenChatReq.TopP != nil && shouldRetryResponsesWithoutTopP(httpResp) {
+			overriddenChatReq.TopP = nil
+			requestBody, newApiErr = buildResponsesCompatRequestBody(c, info, adaptor, &overriddenChatReq, forceUpstreamStream)
+			if newApiErr != nil {
+				return nil, newApiErr
+			}
+			resp, err = adaptor.DoRequest(c, info, requestBody)
+			if err != nil {
+				return nil, types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+			}
+			if resp == nil {
+				return nil, types.NewOpenAIError(nil, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			}
+
+			httpResp = resp.(*http.Response)
+			upstreamStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
+		}
+	}
 	if httpResp.StatusCode != http.StatusOK {
 		newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 		service.ResetStatusCode(newApiErr, statusCodeMappingStr)

@@ -11,10 +11,6 @@ import (
 	"github.com/samber/lo"
 )
 
-func modelRejectsResponsesTopP(model string) bool {
-	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "gpt-5")
-}
-
 func normalizeChatImageURLToString(v any) any {
 	switch vv := v.(type) {
 	case string:
@@ -372,7 +368,7 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 	//}
 
 	var topP *float64
-	if req.TopP != nil && !modelRejectsResponsesTopP(req.Model) {
+	if req.TopP != nil {
 		topP = common.GetPointer(lo.FromPtr(req.TopP))
 	}
 
