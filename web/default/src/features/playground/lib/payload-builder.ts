@@ -24,6 +24,18 @@ import type {
 } from '../types'
 import { formatMessageForAPI, isValidMessage } from './message-utils'
 
+function getUnsupportedParameterKeys(model: string): Set<keyof ParameterEnabled> {
+  const unsupported = new Set<keyof ParameterEnabled>()
+  const normalizedModel = model.trim().toLowerCase()
+
+  // Codex-family models reject top_p in playground requests.
+  if (normalizedModel.includes('codex')) {
+    unsupported.add('top_p')
+  }
+
+  return unsupported
+}
+
 /**
  * Build API request payload from messages and config
  */
@@ -43,6 +55,7 @@ export function buildChatCompletionPayload(
     messages: processedMessages,
     stream: config.stream,
   }
+  const unsupportedParameterKeys = getUnsupportedParameterKeys(config.model)
 
   // Add enabled parameters
   const parameterKeys: Array<keyof ParameterEnabled> = [
@@ -55,7 +68,7 @@ export function buildChatCompletionPayload(
   ]
 
   parameterKeys.forEach((key) => {
-    if (parameterEnabled[key]) {
+    if (parameterEnabled[key] && !unsupportedParameterKeys.has(key)) {
       const value = config[key as keyof PlaygroundConfig]
       if (value !== undefined && value !== null) {
         ;(payload as unknown as Record<string, unknown>)[key] = value
