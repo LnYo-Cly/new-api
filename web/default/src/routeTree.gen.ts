@@ -37,6 +37,7 @@ import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
+import { Route as AuthenticatedEmailLogsIndexRouteImport } from './routes/_authenticated/email-logs/index'
 import { Route as AuthenticatedWalletReferralRouteImport } from './routes/_authenticated/wallet/referral'
 import { Route as AuthenticatedUsersReferralsRouteImport } from './routes/_authenticated/users/referrals'
 import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authenticated/usage-logs/index'
@@ -210,6 +211,12 @@ const AuthenticatedUsersIndexRoute = AuthenticatedUsersIndexRouteImport.update({
   path: '/users/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedEmailLogsIndexRoute =
+  AuthenticatedEmailLogsIndexRouteImport.update({
+    id: '/email-logs/',
+    path: '/email-logs/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedWalletReferralRoute =
   AuthenticatedWalletReferralRouteImport.update({
     id: '/wallet/referral',
@@ -441,6 +448,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
   '/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
+  '/email-logs/': typeof AuthenticatedEmailLogsIndexRoute
   '/users/referrals': typeof AuthenticatedUsersReferralsRoute
   '/wallet/': typeof AuthenticatedWalletIndexRoute
   '/wallet/referral': typeof AuthenticatedWalletReferralRoute
@@ -500,6 +508,7 @@ export interface FileRoutesByTo {
   '/system-settings': typeof AuthenticatedSystemSettingsIndexRoute
   '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
+  '/email-logs': typeof AuthenticatedEmailLogsIndexRoute
   '/users/referrals': typeof AuthenticatedUsersReferralsRoute
   '/wallet': typeof AuthenticatedWalletIndexRoute
   '/wallet/referral': typeof AuthenticatedWalletReferralRoute
@@ -563,6 +572,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
   '/_authenticated/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
+  '/_authenticated/email-logs/': typeof AuthenticatedEmailLogsIndexRoute
   '/_authenticated/users/referrals': typeof AuthenticatedUsersReferralsRoute
   '/_authenticated/wallet/': typeof AuthenticatedWalletIndexRoute
   '/_authenticated/wallet/referral': typeof AuthenticatedWalletReferralRoute
@@ -622,10 +632,11 @@ export interface FileRouteTypes {
     | '/profile/'
     | '/redemption-codes/'
     | '/subscriptions/'
-    | '/system-settings/'
-    | '/usage-logs/'
-    | '/users/'
-    | '/users/referrals'
+      | '/system-settings/'
+      | '/usage-logs/'
+      | '/users/'
+      | '/email-logs/'
+      | '/users/referrals'
     | '/wallet/'
     | '/wallet/referral'
     | '/pricing/$modelId/'
@@ -681,10 +692,11 @@ export interface FileRouteTypes {
     | '/profile'
     | '/redemption-codes'
     | '/subscriptions'
-    | '/system-settings'
-    | '/usage-logs'
-    | '/users'
-    | '/users/referrals'
+      | '/system-settings'
+      | '/usage-logs'
+      | '/users'
+      | '/email-logs'
+      | '/users/referrals'
     | '/wallet'
     | '/wallet/referral'
     | '/pricing/$modelId'
@@ -743,10 +755,11 @@ export interface FileRouteTypes {
     | '/_authenticated/profile/'
     | '/_authenticated/redemption-codes/'
     | '/_authenticated/subscriptions/'
-    | '/_authenticated/system-settings/'
-    | '/_authenticated/usage-logs/'
-    | '/_authenticated/users/'
-    | '/_authenticated/users/referrals'
+      | '/_authenticated/system-settings/'
+      | '/_authenticated/usage-logs/'
+      | '/_authenticated/users/'
+      | '/_authenticated/email-logs/'
+      | '/_authenticated/users/referrals'
     | '/_authenticated/wallet/'
     | '/_authenticated/wallet/referral'
     | '/pricing/$modelId/'
@@ -990,6 +1003,13 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/users/'
       preLoaderRoute: typeof AuthenticatedUsersIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/email-logs/': {
+      id: '/_authenticated/email-logs/'
+      path: '/email-logs'
+      fullPath: '/email-logs/'
+      preLoaderRoute: typeof AuthenticatedEmailLogsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/users/referrals': {
@@ -1311,6 +1331,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSubscriptionsIndexRoute: typeof AuthenticatedSubscriptionsIndexRoute
   AuthenticatedUsageLogsIndexRoute: typeof AuthenticatedUsageLogsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
+  AuthenticatedEmailLogsIndexRoute: typeof AuthenticatedEmailLogsIndexRoute
   AuthenticatedUsersReferralsRoute: typeof AuthenticatedUsersReferralsRoute
   AuthenticatedWalletIndexRoute: typeof AuthenticatedWalletIndexRoute
   AuthenticatedWalletReferralRoute: typeof AuthenticatedWalletReferralRoute
@@ -1336,6 +1357,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSubscriptionsIndexRoute: AuthenticatedSubscriptionsIndexRoute,
   AuthenticatedUsageLogsIndexRoute: AuthenticatedUsageLogsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
+  AuthenticatedEmailLogsIndexRoute: AuthenticatedEmailLogsIndexRoute,
   AuthenticatedUsersReferralsRoute: AuthenticatedUsersReferralsRoute,
   AuthenticatedWalletIndexRoute: AuthenticatedWalletIndexRoute,
   AuthenticatedWalletReferralRoute: AuthenticatedWalletReferralRoute,

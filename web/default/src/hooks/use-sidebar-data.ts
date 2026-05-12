@@ -21,6 +21,7 @@ import {
   Activity,
   Key,
   FileText,
+  Mail,
   Wallet,
   Box,
   Users,
@@ -38,9 +39,53 @@ import { useTranslation } from 'react-i18next'
 import { getSystemSettingsNavGroups } from '@/components/layout/config/system-settings.config'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
 import { type SidebarData } from '@/components/layout/types'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const { auth } = useAuthStore()
+
+  const adminItems = [
+    {
+      title: t('Channels'),
+      url: '/channels',
+      icon: Radio,
+    },
+    {
+      title: t('Models'),
+      url: '/models/metadata',
+      icon: Box,
+    },
+    {
+      title: t('Users'),
+      url: '/users',
+      icon: Users,
+    },
+    {
+      title: t('Referral Management'),
+      url: '/users/referrals',
+      icon: Share2,
+    },
+    {
+      title: t('Redemption Codes'),
+      url: '/redemption-codes',
+      icon: Ticket,
+    },
+    {
+      title: t('Subscription Management'),
+      url: '/subscriptions',
+      icon: CreditCard,
+    },
+  ]
+
+  if (auth.user?.role === ROLE.SUPER_ADMIN) {
+    adminItems.push({
+      title: t('Email Logs'),
+      url: '/email-logs',
+      icon: Mail,
+    })
+  }
 
   return {
     workspaces: [
@@ -125,38 +170,7 @@ export function useSidebarData(): SidebarData {
       {
         id: 'admin',
         title: t('Admin'),
-        items: [
-          {
-            title: t('Channels'),
-            url: '/channels',
-            icon: Radio,
-          },
-          {
-            title: t('Models'),
-            url: '/models/metadata',
-            icon: Box,
-          },
-          {
-            title: t('Users'),
-            url: '/users',
-            icon: Users,
-          },
-          {
-            title: t('Referral Management'),
-            url: '/users/referrals',
-            icon: Share2,
-          },
-          {
-            title: t('Redemption Codes'),
-            url: '/redemption-codes',
-            icon: Ticket,
-          },
-          {
-            title: t('Subscription Management'),
-            url: '/subscriptions',
-            icon: CreditCard,
-          },
-        ],
+        items: adminItems,
       },
       ...getSystemSettingsNavGroups(t),
     ],

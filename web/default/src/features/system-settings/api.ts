@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import type {
   DeleteLogsResponse,
+  EmailLogsResponse,
   FetchUpstreamRatiosRequest,
   SystemOptionsResponse,
   UpdateOptionRequest,
@@ -40,6 +41,19 @@ export async function updateSystemOption(request: UpdateOptionRequest) {
 export async function deleteLogsBefore(targetTimestamp: number) {
   const res = await api.delete<DeleteLogsResponse>('/api/log/', {
     params: { target_timestamp: targetTimestamp },
+  })
+  return res.data
+}
+
+export async function getEmailLogs(params: {
+  p?: number
+  page_size?: number
+  status?: string
+  purpose?: string
+  keyword?: string
+}) {
+  const res = await api.get<EmailLogsResponse>('/api/log/email', {
+    params,
   })
   return res.data
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -38,6 +39,26 @@ type Log struct {
 	RequestId        string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	Other            string `json:"other"`
 }
+
+type EmailLogRecord struct {
+	Id        int    `json:"id"`
+	UserId    int    `json:"user_id"`
+	Username  string `json:"username"`
+	CreatedAt int64  `json:"created_at"`
+	Status    string `json:"status"`
+	Purpose   string `json:"purpose"`
+	Receiver  string `json:"receiver"`
+	Subject   string `json:"subject"`
+	Content   string `json:"content"`
+	Error     string `json:"error,omitempty"`
+	From      string `json:"from,omitempty"`
+}
+
+const (
+	emailLogCategory = "email"
+	emailLogSent     = "sent"
+	emailLogFailed   = "failed"
+)
 
 // don't use iota, avoid change log type value
 const (
@@ -140,6 +161,117 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 	if err != nil {
 		common.SysLog("failed to record topup log: " + err.Error())
 	}
+}
+
+func RecordEmailLog(userId int, receiver string, subject string, content string, purpose string, status string, errorMessage string) {
+	username := "system"
+	if userId > 0 {
+		if resolvedUsername, err := GetUsernameById(userId, false); err == nil && resolvedUsername != "" {
+			username = resolvedUsername
+		}
+	}
+
+	summary := fmt.Sprintf("Email %s: %s -> %s", status, subject, receiver)
+	other := map[string]interface{}{
+		"category": emailLogCategory,
+		"status":   status,
+		"purpose":  purpose,
+		"receiver": receiver,
+		"subject":  subject,
+		"content":  content,
+		"from":     common.SMTPFrom,
+	}
+	if errorMessage != "" {
+		other["error"] = errorMessage
+	}
+
+	log := &Log{
+		UserId:    userId,
+		Username:  username,
+		CreatedAt: common.GetTimestamp(),
+		Type:      LogTypeSystem,
+		Content:   summary,
+		Other:     common.MapToJsonStr(other),
+	}
+	if err := LOG_DB.Create(log).Error; err != nil {
+		common.SysLog("failed to record email log: " + err.Error())
+	}
+}
+
+func buildContainsLikePattern(input string) string {
+	escaped := strings.ReplaceAll(input, "!", "!!")
+	escaped = strings.ReplaceAll(escaped, "%", "!%")
+	escaped = strings.ReplaceAll(escaped, "_", "!_")
+	return "%" + escaped + "%"
+}
+
+func parseEmailLogRecord(log *Log) *EmailLogRecord {
+	record := &EmailLogRecord{
+		Id:        log.Id,
+		UserId:    log.UserId,
+		Username:  log.Username,
+		CreatedAt: log.CreatedAt,
+		Status:    emailLogSent,
+		Content:   log.Content,
+	}
+
+	other := make(map[string]string)
+	if log.Other != "" {
+		_ = common.UnmarshalJsonStr(log.Other, &other)
+	}
+
+	if status := other["status"]; status != "" {
+		record.Status = status
+	}
+	record.Purpose = other["purpose"]
+	record.Receiver = other["receiver"]
+	record.Subject = other["subject"]
+	record.From = other["from"]
+	record.Error = other["error"]
+	if content := other["content"]; content != "" {
+		record.Content = content
+	}
+
+	return record
+}
+
+func GetEmailLogs(startIdx int, num int, status string, purpose string, keyword string) (records []*EmailLogRecord, total int64, err error) {
+	tx := LOG_DB.Model(&Log{}).
+		Where("type = ?", LogTypeSystem).
+		Where("other LIKE ?", `%"category":"email"%`)
+
+	if status == emailLogSent || status == emailLogFailed {
+		tx = tx.Where("other LIKE ?", fmt.Sprintf(`%%"status":"%s"%%`, status))
+	}
+
+	if purpose != "" {
+		tx = tx.Where("other LIKE ?", fmt.Sprintf(`%%"purpose":"%s"%%`, purpose))
+	}
+
+	if keyword != "" {
+		pattern := buildContainsLikePattern(keyword)
+		tx = tx.Where(
+			"(content LIKE ? ESCAPE '!' OR other LIKE ? ESCAPE '!')",
+			pattern,
+			pattern,
+		)
+	}
+
+	if err = tx.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var logs []*Log
+	if err = tx.Order("id desc").Limit(num).Offset(startIdx).Find(&logs).Error; err != nil {
+		return nil, 0, err
+	}
+
+	records = make([]*EmailLogRecord, 0, len(logs))
+	for _, log := range logs {
+		records = append(records, parseEmailLogRecord(log))
+	}
+
+	return records, total, nil
 }
 
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,

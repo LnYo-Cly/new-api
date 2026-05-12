@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -289,9 +288,11 @@ func SendEmailVerification(c *gin.Context) {
 		"<p>验证码 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, code, common.VerificationValidMinutes)
 	err := common.SendEmail(subject, email, content)
 	if err != nil {
+		model.RecordEmailLog(0, email, subject, content, "email_verification", "failed", err.Error())
 		common.ApiError(c, err)
 		return
 	}
+	model.RecordEmailLog(0, email, subject, content, "email_verification", "sent", "")
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -319,7 +320,10 @@ func SendPasswordResetEmail(c *gin.Context) {
 			"<p>重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, link, link, common.VerificationValidMinutes)
 		err := common.SendEmail(subject, email, content)
 		if err != nil {
+			model.RecordEmailLog(0, email, subject, content, "password_reset", "failed", err.Error())
 			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to send password reset email to %s: %s", email, err.Error()))
+		} else {
+			model.RecordEmailLog(0, email, subject, content, "password_reset", "sent", "")
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -335,7 +339,7 @@ type PasswordResetRequest struct {
 
 func ResetPassword(c *gin.Context) {
 	var req PasswordResetRequest
-	err := json.NewDecoder(c.Request.Body).Decode(&req)
+	err := common.DecodeJson(c.Request.Body, &req)
 	if req.Email == "" || req.Token == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

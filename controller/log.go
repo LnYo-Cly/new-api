@@ -32,6 +32,28 @@ func GetAllLogs(c *gin.Context) {
 	return
 }
 
+func GetEmailLogs(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	status := c.Query("status")
+	purpose := c.Query("purpose")
+	keyword := c.Query("keyword")
+
+	logs, total, err := model.GetEmailLogs(
+		pageInfo.GetStartIdx(),
+		pageInfo.GetPageSize(),
+		status,
+		purpose,
+		keyword,
+	)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(logs)
+	common.ApiSuccess(c, pageInfo)
+}
+
 func GetUserLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	userId := c.GetInt("id")

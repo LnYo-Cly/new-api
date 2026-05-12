@@ -45,6 +45,31 @@ export type DeleteLogsResponse = {
   data?: number
 }
 
+export type EmailLogItem = {
+  id: number
+  user_id: number
+  username: string
+  created_at: number
+  status: string
+  purpose: string
+  receiver: string
+  subject: string
+  content: string
+  error?: string
+  from?: string
+}
+
+export type EmailLogsResponse = {
+  success: boolean
+  message: string
+  data: {
+    page: number
+    page_size: number
+    total: number
+    items: EmailLogItem[]
+  }
+}
+
 export type SiteSettings = {
   'theme.frontend': string
   Notice: string
