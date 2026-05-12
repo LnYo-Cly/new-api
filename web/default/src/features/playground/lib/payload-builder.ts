@@ -28,8 +28,8 @@ function getUnsupportedParameterKeys(model: string): Set<keyof ParameterEnabled>
   const unsupported = new Set<keyof ParameterEnabled>()
   const normalizedModel = model.trim().toLowerCase()
 
-  // Codex-family models reject top_p in playground requests.
-  if (normalizedModel.includes('codex')) {
+  // GPT-5 family models reject top_p in playground requests.
+  if (normalizedModel.startsWith('gpt-5')) {
     unsupported.add('top_p')
   }
 

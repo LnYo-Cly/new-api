@@ -7,6 +7,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestChatCompletionsRequestToResponsesRequest_OmitsTopPForGPT5Models(t *testing.T) {
+	topP := 1.0
+	stream := true
+
+	req := &dto.GeneralOpenAIRequest{
+		Model:  "gpt-5.4",
+		Stream: &stream,
+		TopP:   &topP,
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "hi",
+			},
+		},
+	}
+
+	out, err := ChatCompletionsRequestToResponsesRequest(req)
+	require.NoError(t, err)
+	require.Nil(t, out.TopP)
+}
+
 func TestChatCompletionsRequestToResponsesRequest_OmitsTopPForCodexModels(t *testing.T) {
 	topP := 1.0
 	stream := true
@@ -51,6 +72,7 @@ func TestChatCompletionsRequestToResponsesRequest_PreservesTopPForNonCodexModels
 }
 
 func TestModelRejectsResponsesTopP(t *testing.T) {
+	require.True(t, modelRejectsResponsesTopP("gpt-5.4"))
 	require.True(t, modelRejectsResponsesTopP("gpt-5.3-codex"))
 	require.True(t, modelRejectsResponsesTopP(" GPT-5.1-CODEX "))
 	require.False(t, modelRejectsResponsesTopP("gpt-4.1"))

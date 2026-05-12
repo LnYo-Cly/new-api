@@ -12,7 +12,7 @@ import (
 )
 
 func modelRejectsResponsesTopP(model string) bool {
-	return strings.Contains(strings.ToLower(strings.TrimSpace(model)), "codex")
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "gpt-5")
 }
 
 func normalizeChatImageURLToString(v any) any {
