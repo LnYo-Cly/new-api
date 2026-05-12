@@ -55,7 +55,9 @@ export function AppSidebar() {
   const currentNavGroups = useMemo(() => {
     const isAdmin = userRole && userRole >= ROLE.ADMIN
     const visibleGroups = configFilteredNavGroups.filter((group) => {
-      if (group.id === 'admin') return isAdmin
+      if (group.id === 'admin' || group.id === 'system-administration') {
+        return isAdmin
+      }
       return true
     })
 

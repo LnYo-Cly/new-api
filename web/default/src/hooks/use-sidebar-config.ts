@@ -169,7 +169,12 @@ function isModuleEnabled(
   adminConfig: SidebarModulesAdminConfig,
   userConfig: SidebarModulesUserConfig
 ): boolean {
-  const mapping = URL_TO_CONFIG_MAP[url]
+  const mapping =
+    URL_TO_CONFIG_MAP[url] ??
+    (url.startsWith('/system-settings/')
+      ? URL_TO_CONFIG_MAP['/system-settings']
+      : undefined)
+
   if (!mapping) {
     // No mapping config, default to visible (e.g. system settings and new features)
     return true

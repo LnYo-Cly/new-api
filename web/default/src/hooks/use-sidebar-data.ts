@@ -33,9 +33,9 @@ import {
   MessageSquare,
   CreditCard,
   ListTodo,
-  Settings,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { getSystemSettingsNavGroups } from '@/components/layout/config/system-settings.config'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
 import { type SidebarData } from '@/components/layout/types'
 
@@ -156,14 +156,9 @@ export function useSidebarData(): SidebarData {
             url: '/subscriptions',
             icon: CreditCard,
           },
-          {
-            title: t('System Settings'),
-            url: '/system-settings/site',
-            activeUrls: ['/system-settings'],
-            icon: Settings,
-          },
         ],
       },
+      ...getSystemSettingsNavGroups(t),
     ],
   }
 }

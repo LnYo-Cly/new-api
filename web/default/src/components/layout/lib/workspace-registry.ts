@@ -114,7 +114,15 @@ export function getNavGroupsForPath(
   }
 
   if (workspace.navigationMode === 'append' && fallbackNavGroups?.length) {
-    return [...fallbackNavGroups, ...workspaceNavGroups]
+    const mergedNavGroups = [...fallbackNavGroups, ...workspaceNavGroups]
+    const seenGroups = new Set<string>()
+
+    return mergedNavGroups.filter((group) => {
+      const key = group.id || group.title
+      if (seenGroups.has(key)) return false
+      seenGroups.add(key)
+      return true
+    })
   }
 
   return workspaceNavGroups
