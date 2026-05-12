@@ -43,6 +43,8 @@ export type WorkspaceConfig = {
   pathPattern: string | RegExp
   /** Sidebar navigation group configuration for this workspace */
   getNavGroups?: (t: TFunction) => NavGroup[]
+  /** How workspace navigation should be composed with the default sidebar */
+  navigationMode?: 'replace' | 'append'
 }
 
 /**
@@ -66,6 +68,7 @@ const workspaceRegistry: WorkspaceConfig[] = [
     name: 'System Settings',
     pathPattern: /^\/system-settings/,
     getNavGroups: getSystemSettingsNavGroups,
+    navigationMode: 'append',
   },
   // Default workspace (must be last)
   {
@@ -100,10 +103,21 @@ export function getWorkspaceByPath(pathname: string): WorkspaceConfig {
  */
 export function getNavGroupsForPath(
   pathname: string,
-  t: TFunction
-): NavGroup[] | undefined {
+  t: TFunction,
+  fallbackNavGroups?: NavGroup[]
+): NavGroup[] {
   const workspace = getWorkspaceByPath(pathname)
-  return workspace.getNavGroups?.(t)
+  const workspaceNavGroups = workspace.getNavGroups?.(t)
+
+  if (!workspaceNavGroups) {
+    return fallbackNavGroups ?? []
+  }
+
+  if (workspace.navigationMode === 'append' && fallbackNavGroups?.length) {
+    return [...fallbackNavGroups, ...workspaceNavGroups]
+  }
+
+  return workspaceNavGroups
 }
 
 /**

@@ -45,7 +45,7 @@ export function AppSidebar() {
   const sidebarData = useSidebarData()
 
   // Get navigation group configuration corresponding to current path from workspace registry
-  const allNavGroups = getNavGroupsForPath(pathname, t) || sidebarData.navGroups
+  const allNavGroups = getNavGroupsForPath(pathname, t, sidebarData.navGroups)
 
   // Filter sidebar navigation items based on backend configuration
   const configFilteredNavGroups = useSidebarConfig(allNavGroups)

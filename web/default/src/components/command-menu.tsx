@@ -45,7 +45,7 @@ export function CommandMenu() {
   const sidebarData = useSidebarData()
 
   // 根据当前路径从工作区注册表获取对应的侧边栏配置
-  const navGroups = getNavGroupsForPath(pathname, t) || sidebarData.navGroups
+  const navGroups = getNavGroupsForPath(pathname, t, sidebarData.navGroups)
 
   const runCommand = React.useCallback(
     (command: () => unknown) => {
