@@ -20,6 +20,161 @@ import { STORAGE_KEYS } from '../constants'
 import type { PlaygroundConfig, ParameterEnabled, Message } from '../types'
 import { sanitizeMessagesOnLoad } from './message-utils'
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function extractLegacyTextContent(content: unknown): string {
+  if (typeof content === 'string') {
+    return content
+  }
+
+  if (!Array.isArray(content)) {
+    return ''
+  }
+
+  const textParts = content
+    .filter(
+      (part): part is { type?: string; text?: unknown } =>
+        isRecord(part) && part.type === 'text'
+    )
+    .map((part) => (typeof part.text === 'string' ? part.text : ''))
+    .filter(Boolean)
+
+  return textParts.join('\n')
+}
+
+function normalizeLoadedMessages(saved: unknown): {
+  messages: Message[] | null
+  mutated: boolean
+} {
+  let mutated = false
+  let rawMessages = saved
+
+  if (isRecord(saved) && Array.isArray(saved.messages)) {
+    rawMessages = saved.messages
+    mutated = true
+  }
+
+  if (!Array.isArray(rawMessages)) {
+    return { messages: null, mutated: true }
+  }
+
+  const messages: Message[] = []
+
+  rawMessages.forEach((rawMessage, index) => {
+    if (!isRecord(rawMessage)) {
+      mutated = true
+      return
+    }
+
+    const from =
+      typeof rawMessage.from === 'string'
+        ? rawMessage.from
+        : typeof rawMessage.role === 'string'
+          ? rawMessage.role
+          : null
+
+    if (from !== 'user' && from !== 'assistant' && from !== 'system') {
+      mutated = true
+      return
+    }
+
+    let versions = Array.isArray(rawMessage.versions)
+      ? rawMessage.versions
+          .map((version, versionIndex) => {
+            if (!isRecord(version)) {
+              mutated = true
+              return null
+            }
+
+            const content =
+              typeof version.content === 'string'
+                ? version.content
+                : extractLegacyTextContent(version.content)
+
+            return {
+              id:
+                typeof version.id === 'string'
+                  ? version.id
+                  : `${index}-${versionIndex}`,
+              content,
+            }
+          })
+          .filter((version): version is NonNullable<typeof version> =>
+            Boolean(version)
+          )
+      : []
+
+    if (versions.length === 0) {
+      versions = [
+        {
+          id:
+            typeof rawMessage.key === 'string'
+              ? rawMessage.key
+              : typeof rawMessage.id === 'string'
+                ? rawMessage.id
+                : `${index}`,
+          content: extractLegacyTextContent(rawMessage.content),
+        },
+      ]
+      mutated = true
+    }
+
+    const reasoningContent = isRecord(rawMessage.reasoning)
+      ? rawMessage.reasoning.content
+      : rawMessage.reasoningContent
+
+    const status =
+      rawMessage.status === 'incomplete' ? 'streaming' : rawMessage.status
+
+    messages.push({
+      key:
+        typeof rawMessage.key === 'string'
+          ? rawMessage.key
+          : typeof rawMessage.id === 'string'
+            ? rawMessage.id
+            : `${index}`,
+      from,
+      versions,
+      reasoning:
+        typeof reasoningContent === 'string' && reasoningContent
+          ? {
+              content: reasoningContent,
+              duration:
+                isRecord(rawMessage.reasoning) &&
+                typeof rawMessage.reasoning.duration === 'number'
+                  ? rawMessage.reasoning.duration
+                  : 0,
+            }
+          : undefined,
+      isReasoningStreaming:
+        typeof rawMessage.isReasoningStreaming === 'boolean'
+          ? rawMessage.isReasoningStreaming
+          : false,
+      isReasoningComplete:
+        typeof rawMessage.isReasoningComplete === 'boolean'
+          ? rawMessage.isReasoningComplete
+          : undefined,
+      isContentComplete:
+        typeof rawMessage.isContentComplete === 'boolean'
+          ? rawMessage.isContentComplete
+          : undefined,
+      status:
+        status === 'loading' ||
+        status === 'streaming' ||
+        status === 'complete' ||
+        status === 'error'
+          ? status
+          : undefined,
+      errorCode:
+        typeof rawMessage.errorCode === 'string' ? rawMessage.errorCode : null,
+    })
+  })
+
+  return { messages, mutated }
+}
+
 /**
  * Load playground config from localStorage
  */
@@ -88,10 +243,15 @@ export function loadMessages(): Message[] | null {
   try {
     const saved = localStorage.getItem(STORAGE_KEYS.MESSAGES)
     if (saved) {
-      const parsed: Message[] = JSON.parse(saved)
-      const sanitized = sanitizeMessagesOnLoad(parsed)
-      // Persist sanitized result to avoid re-sanitizing on subsequent loads
-      if (sanitized !== parsed) {
+      const parsed = JSON.parse(saved) as unknown
+      const { messages, mutated } = normalizeLoadedMessages(parsed)
+      if (!messages) {
+        return null
+      }
+
+      const sanitized = sanitizeMessagesOnLoad(messages)
+      // Persist normalized/sanitized result to avoid future crashes from old data
+      if (mutated || sanitized !== messages) {
         saveMessages(sanitized)
       }
       return sanitized
