@@ -1,10 +1,13 @@
 package common
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 )
 
@@ -20,8 +23,10 @@ const (
 
 var verificationMutex sync.Mutex
 var verificationMap map[string]verificationValue
+var verificationSendLockMap map[string]time.Time
 var verificationMapMaxSize = 10
 var VerificationValidMinutes = 10
+var VerificationSendCooldownMinutes = 5
 
 func GenerateVerificationCode(length int) string {
 	code := uuid.New().String()
@@ -42,6 +47,54 @@ func RegisterVerificationCodeWithKey(key string, code string, purpose string) {
 	if len(verificationMap) > verificationMapMaxSize {
 		removeExpiredPairs()
 	}
+}
+
+func TryAcquireVerificationSendLock(key string, purpose string) (bool, time.Duration) {
+	lockKey := getVerificationSendLockKey(key, purpose)
+	cooldown := time.Duration(VerificationSendCooldownMinutes) * time.Minute
+	if RedisEnabled {
+		ctx := context.Background()
+		ok, err := RDB.SetNX(ctx, lockKey, time.Now().Unix(), cooldown).Result()
+		if err == nil {
+			if ok {
+				return true, 0
+			}
+			ttl, ttlErr := RDB.TTL(ctx, lockKey).Result()
+			if ttlErr == nil && ttl > 0 {
+				return false, ttl
+			}
+			return false, cooldown
+		}
+		if err != redis.Nil {
+			SysError(fmt.Sprintf("failed to acquire verification send lock %s: %v", lockKey, err))
+		}
+	}
+
+	verificationMutex.Lock()
+	defer verificationMutex.Unlock()
+
+	now := time.Now()
+	if sendTime, exists := verificationSendLockMap[lockKey]; exists {
+		elapsed := now.Sub(sendTime)
+		if elapsed < cooldown {
+			return false, cooldown - elapsed
+		}
+	}
+	verificationSendLockMap[lockKey] = now
+	return true, 0
+}
+
+func ReleaseVerificationSendLock(key string, purpose string) {
+	lockKey := getVerificationSendLockKey(key, purpose)
+	if RedisEnabled {
+		if err := RedisDel(lockKey); err != nil && err != redis.Nil {
+			SysError(fmt.Sprintf("failed to release verification send lock %s: %v", lockKey, err))
+		}
+	}
+
+	verificationMutex.Lock()
+	defer verificationMutex.Unlock()
+	delete(verificationSendLockMap, lockKey)
 }
 
 func VerifyCodeWithKey(key string, code string, purpose string) bool {
@@ -69,10 +122,22 @@ func removeExpiredPairs() {
 			delete(verificationMap, key)
 		}
 	}
+	cooldown := time.Duration(VerificationSendCooldownMinutes) * time.Minute
+	for key, sendTime := range verificationSendLockMap {
+		if now.Sub(sendTime) >= cooldown {
+			delete(verificationSendLockMap, key)
+		}
+	}
+}
+
+func getVerificationSendLockKey(key string, purpose string) string {
+	normalizedKey := strings.ToLower(strings.TrimSpace(key))
+	return "verification:send-lock:" + purpose + ":" + normalizedKey
 }
 
 func init() {
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	verificationMap = make(map[string]verificationValue)
+	verificationSendLockMap = make(map[string]time.Time)
 }

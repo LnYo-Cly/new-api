@@ -5,7 +5,9 @@ on:
     branches:
       - main
     tags:
-      - 'v*'
+      - '*'
+      - '!*-alpha*'
+      - '!*-nightly*'
   workflow_dispatch:
     inputs:
       tag:

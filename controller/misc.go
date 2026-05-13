@@ -280,6 +280,14 @@ func SendEmailVerification(c *gin.Context) {
 		})
 		return
 	}
+	ok, waitTime := common.TryAcquireVerificationSendLock(email, common.EmailVerificationPurpose)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": fmt.Sprintf("该类型验证码发送过于频繁，请等待 %d 秒后再试", int(waitTime.Seconds())),
+		})
+		return
+	}
 	code := common.GenerateVerificationCode(6)
 	common.RegisterVerificationCodeWithKey(email, code, common.EmailVerificationPurpose)
 	subject := fmt.Sprintf("%s邮箱验证邮件", common.SystemName)
@@ -288,6 +296,8 @@ func SendEmailVerification(c *gin.Context) {
 		"<p>验证码 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, code, common.VerificationValidMinutes)
 	err := common.SendEmail(subject, email, content)
 	if err != nil {
+		common.ReleaseVerificationSendLock(email, common.EmailVerificationPurpose)
+		common.DeleteKey(email, common.EmailVerificationPurpose)
 		model.RecordEmailLog(0, email, subject, content, "email_verification", "failed", err.Error())
 		common.ApiError(c, err)
 		return
@@ -310,6 +320,14 @@ func SendPasswordResetEmail(c *gin.Context) {
 		return
 	}
 	if model.IsEmailAlreadyTaken(email) {
+		ok, _ := common.TryAcquireVerificationSendLock(email, common.PasswordResetPurpose)
+		if !ok {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "",
+			})
+			return
+		}
 		code := common.GenerateVerificationCode(0)
 		common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
 		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, email, code)
@@ -320,6 +338,8 @@ func SendPasswordResetEmail(c *gin.Context) {
 			"<p>重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, link, link, common.VerificationValidMinutes)
 		err := common.SendEmail(subject, email, content)
 		if err != nil {
+			common.ReleaseVerificationSendLock(email, common.PasswordResetPurpose)
+			common.DeleteKey(email, common.PasswordResetPurpose)
 			model.RecordEmailLog(0, email, subject, content, "password_reset", "failed", err.Error())
 			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to send password reset email to %s: %s", email, err.Error()))
 		} else {
