@@ -22,10 +22,13 @@ import { toast } from 'sonner'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import {
   batchRefreshCodexCredentials,
+  batchRefreshCodexUsage,
   copyChannel,
   deleteChannel,
   deleteCredentialInvalidCodexChannels,
+  getChannels,
   testChannel,
+  searchChannels,
   updateChannel,
   batchDeleteChannels,
   batchSetChannelTag,
@@ -38,8 +41,17 @@ import {
   updateAllChannelsBalance,
   updateChannelBalance,
 } from '../api'
-import { CHANNEL_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
-import type { CopyChannelParams } from '../types'
+import {
+  CHANNEL_STATUS,
+  CHANNEL_TYPE_CODEX,
+  ERROR_MESSAGES,
+  SUCCESS_MESSAGES,
+} from '../constants'
+import type {
+  CopyChannelParams,
+  GetChannelsParams,
+  SearchChannelsParams,
+} from '../types'
 
 // ============================================================================
 // Query Keys
@@ -52,6 +64,62 @@ export const channelsQueryKeys = {
     [...channelsQueryKeys.lists(), params] as const,
   details: () => [...channelsQueryKeys.all, 'detail'] as const,
   detail: (id: number) => [...channelsQueryKeys.details(), id] as const,
+}
+
+const CHANNEL_BATCH_PAGE_SIZE = 200
+const CODEX_USAGE_BATCH_SIZE = 50
+
+type CodexAuthorizationFilterParams = {
+  keyword?: string
+  model?: string
+  group?: string
+  status?: string
+  type?: number
+  codex_status?: string
+  id_sort?: boolean
+  tag_mode?: boolean
+}
+
+function chunkNumbers(values: number[], size: number): number[][] {
+  const chunks: number[][] = []
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size))
+  }
+  return chunks
+}
+
+function buildListParams(
+  params: CodexAuthorizationFilterParams,
+  page: number
+): GetChannelsParams {
+  return {
+    group: params.group,
+    status: params.status,
+    type: params.type,
+    codex_status: params.codex_status,
+    tag_mode: params.tag_mode,
+    id_sort: params.id_sort,
+    p: page,
+    page_size: CHANNEL_BATCH_PAGE_SIZE,
+  }
+}
+
+function buildSearchParams(
+  params: CodexAuthorizationFilterParams,
+  page: number
+): SearchChannelsParams {
+  return {
+    keyword: params.keyword,
+    model: params.model,
+    group: params.group,
+    status: params.status,
+    type: params.type,
+    codex_status: params.codex_status,
+    tag_mode: params.tag_mode,
+    id_sort: params.id_sort,
+    p: page,
+    page_size: CHANNEL_BATCH_PAGE_SIZE,
+  }
 }
 
 // ============================================================================
@@ -494,6 +562,102 @@ export async function handleBatchRefreshCodexCredentials(
       error instanceof Error
         ? error.message
         : i18next.t('Batch Codex token refresh failed')
+    )
+  }
+}
+
+/**
+ * Refresh Codex account authorization status for all channels that match the current filters.
+ */
+export async function handleTestCodexAuthorizationByFilters(
+  params: CodexAuthorizationFilterParams,
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  try {
+    const shouldSearch = Boolean(params.keyword?.trim() || params.model?.trim())
+    const channelIds: number[] = []
+    let page = 1
+    let total = 0
+
+    do {
+      const response = shouldSearch
+        ? await searchChannels(buildSearchParams(params, page))
+        : await getChannels(buildListParams(params, page))
+
+      if (!response.success || !response.data) {
+        throw new Error(
+          response.message || i18next.t('Failed to load channels for authorization test')
+        )
+      }
+
+      const items = response.data.items || []
+      total = response.data.total || 0
+      for (const channel of items) {
+        if (
+          channel.type === CHANNEL_TYPE_CODEX &&
+          !channel.channel_info?.is_multi_key
+        ) {
+          channelIds.push(channel.id)
+        }
+      }
+      page += 1
+    } while ((page - 1) * CHANNEL_BATCH_PAGE_SIZE < total)
+
+    if (channelIds.length === 0) {
+      toast.error(i18next.t('No eligible Codex channels found for authorization test'))
+      return
+    }
+
+    let updatedChannels = 0
+    let failedChannels = 0
+    let invalidChannels = 0
+    let exhaustedChannels = 0
+
+    for (const ids of chunkNumbers(channelIds, CODEX_USAGE_BATCH_SIZE)) {
+      const response = await batchRefreshCodexUsage({ ids })
+      if (!response.success || !response.data) {
+        throw new Error(
+          response.message || i18next.t('Batch Codex usage refresh failed')
+        )
+      }
+
+      updatedChannels += response.data.updated_channels
+      failedChannels += response.data.failed_channels
+      invalidChannels += response.data.invalid_channels
+      exhaustedChannels += response.data.exhausted_channels
+    }
+
+    toast.success(
+      i18next.t(
+        'Account authorization test completed: {{updated}} updated, {{failed}} failed, {{invalid}} invalid, {{exhausted}} exhausted',
+        {
+          updated: updatedChannels,
+          failed: failedChannels,
+          invalid: invalidChannels,
+          exhausted: exhaustedChannels,
+        }
+      )
+    )
+    if (failedChannels > 0 || invalidChannels > 0) {
+      toast.warning(
+        i18next.t(
+          'Some Codex channels require attention after authorization test: {{failed}} failed, {{invalid}} invalid',
+          {
+            failed: failedChannels,
+            invalid: invalidChannels,
+          }
+        )
+      )
+    }
+
+    queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+    onSuccess?.()
+  } catch (error) {
+    toast.error(
+      error instanceof Error
+        ? error.message
+        : i18next.t('Failed to test account authorization')
     )
   }
 }

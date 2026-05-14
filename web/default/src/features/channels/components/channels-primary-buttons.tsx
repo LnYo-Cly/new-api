@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { getRouteApi } from '@tanstack/react-router'
 import {
   Plus,
   MoreHorizontal,
@@ -29,6 +30,7 @@ import {
   SortAsc,
   RefreshCw,
   ArrowUpFromLine,
+  ShieldCheck,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -48,10 +50,13 @@ import {
   handleDeleteAllDisabled,
   handleDeleteCredentialInvalidCodexChannels,
   handleFixAbilities,
+  handleTestCodexAuthorizationByFilters,
   handleTestAllChannels,
   handleUpdateAllBalances,
 } from '../lib'
 import { useChannels } from './channels-provider'
+
+const route = getRouteApi('/_authenticated/channels/')
 
 export function ChannelsPrimaryButtons() {
   const { t } = useTranslation()
@@ -63,9 +68,11 @@ export function ChannelsPrimaryButtons() {
     setIdSort,
     upstream,
   } = useChannels()
+  const search = route.useSearch()
   const queryClient = useQueryClient()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showDeleteInvalidDialog, setShowDeleteInvalidDialog] = useState(false)
+  const [isTestingAuth, setIsTestingAuth] = useState(false)
   const [isDeletingDisabled, setIsDeletingDisabled] = useState(false)
   const [isDeletingInvalid, setIsDeletingInvalid] = useState(false)
 
@@ -77,6 +84,44 @@ export function ChannelsPrimaryButtons() {
   const handleIdSortToggle = (checked: boolean) => {
     localStorage.setItem('channels-id-sort', String(checked))
     setIdSort(checked)
+  }
+
+  const handleTestAuthorization = async () => {
+    if (isTestingAuth) return
+    setIsTestingAuth(true)
+    try {
+      await handleTestCodexAuthorizationByFilters(
+        {
+          keyword: search.filter,
+          model: search.model,
+          group:
+            search.group && search.group.length > 0 && search.group[0] !== 'all'
+              ? search.group[0]
+              : undefined,
+          status:
+            search.status &&
+            search.status.length > 0 &&
+            search.status[0] !== 'all'
+              ? search.status[0]
+              : undefined,
+          type:
+            search.type && search.type.length > 0 && search.type[0] !== 'all'
+              ? Number(search.type[0])
+              : undefined,
+          codex_status:
+            search.codexStatus &&
+            search.codexStatus.length > 0 &&
+            search.codexStatus[0] !== 'all'
+              ? search.codexStatus[0]
+              : undefined,
+          tag_mode: enableTagMode,
+          id_sort: idSort,
+        },
+        queryClient
+      )
+    } finally {
+      setIsTestingAuth(false)
+    }
   }
 
   return (
@@ -112,6 +157,21 @@ export function ChannelsPrimaryButtons() {
           <Plus className='h-4 w-4' />
           <span className='max-sm:hidden'>{t('Create Channel')}</span>
           <span className='sm:hidden'>{t('Create')}</span>
+        </Button>
+
+        <Button
+          onClick={() => void handleTestAuthorization()}
+          size='sm'
+          variant='outline'
+          disabled={isTestingAuth}
+        >
+          {isTestingAuth ? (
+            <RefreshCw className='h-4 w-4 animate-spin' />
+          ) : (
+            <ShieldCheck className='h-4 w-4' />
+          )}
+          <span className='max-sm:hidden'>{t('Test Account Authorization')}</span>
+          <span className='sm:hidden'>{t('Test Auth')}</span>
         </Button>
 
         {/* More Actions */}
