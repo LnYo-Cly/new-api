@@ -202,7 +202,7 @@ export function ChannelsPrimaryButtons() {
             <DropdownMenuSeparator />
 
             <DropdownMenuItem
-              onSelect={(e) => {
+              onClick={(e) => {
                 e.preventDefault()
                 setShowDeleteDialog(true)
               }}
@@ -215,7 +215,7 @@ export function ChannelsPrimaryButtons() {
             </DropdownMenuItem>
 
             <DropdownMenuItem
-              onSelect={(e) => {
+              onClick={(e) => {
                 e.preventDefault()
                 setShowDeleteInvalidDialog(true)
               }}
