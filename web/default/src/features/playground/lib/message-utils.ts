@@ -23,12 +23,17 @@ import type {
   MessageVersion,
   ChatCompletionMessage,
   ContentPart,
+  FileContentPart,
+  ImageContentPart,
+  PlaygroundSubmitMessage,
 } from '../types'
 
 /**
  * Create a new message version
  */
-export function createMessageVersion(content: string): MessageVersion {
+export function createMessageVersion(
+  content: string | ContentPart[]
+): MessageVersion {
   return {
     id: nanoid(),
     content,
@@ -47,7 +52,7 @@ export function getCurrentVersion(message: Message): MessageVersion {
  */
 export function updateCurrentVersionContent(
   message: Message,
-  content: string
+  content: string | ContentPart[]
 ): Message {
   const currentVersion = getCurrentVersion(message)
   return {
@@ -60,10 +65,21 @@ export function updateCurrentVersionContent(
  * Create a user message
  */
 export function createUserMessage(content: string): Message {
+  return createUserMessageFromSubmit({
+    text: content,
+  })
+}
+
+export function createUserMessageFromSubmit(
+  input: PlaygroundSubmitMessage
+): Message {
   return {
     key: nanoid(),
     from: MESSAGE_ROLES.USER,
-    versions: [createMessageVersion(content)],
+    versions: [createMessageVersion(buildMessageContent(input.text, input.files))],
+    requestOptions: {
+      useSearch: input.useSearch,
+    },
   }
 }
 
@@ -88,23 +104,41 @@ export function createLoadingAssistantMessage(): Message {
  */
 export function buildMessageContent(
   text: string,
-  imageUrls: string[] = []
+  files: Array<{
+    url?: string
+    mediaType?: string
+    filename?: string
+  }> = []
 ): string | ContentPart[] {
-  const validImages = imageUrls.filter((url) => url.trim() !== '')
+  const textContent = text || ''
+  const validFiles = files.filter((file) => file.url?.trim())
 
-  if (validImages.length === 0) {
+  if (validFiles.length === 0) {
     return text
   }
 
   const parts: ContentPart[] = [
     {
       type: 'text',
-      text: text || '',
+      text: textContent,
     },
-    ...validImages.map((url) => ({
-      type: 'image_url' as const,
-      image_url: { url: url.trim() },
-    })),
+    ...validFiles.map((file) =>
+      file.mediaType?.startsWith('image/')
+        ? ({
+            type: 'image_url',
+            image_url: { url: file.url!.trim() },
+            filename: file.filename,
+            mediaType: file.mediaType,
+          } as const)
+        : ({
+            type: 'file',
+            file: {
+              filename: file.filename || 'attachment',
+              file_data: file.url!.trim(),
+            },
+            mediaType: file.mediaType,
+          } as const)
+    ),
   ]
 
   return parts
@@ -124,6 +158,41 @@ export function getTextContent(content: string | ContentPart[]): string {
   }
 
   return ''
+}
+
+export function getAttachmentParts(
+  content: string | ContentPart[]
+): Array<ImageContentPart | FileContentPart> {
+  if (!Array.isArray(content)) {
+    return []
+  }
+
+  return content.filter(
+    (part): part is ImageContentPart | FileContentPart =>
+      part.type === 'image_url' || part.type === 'file'
+  )
+}
+
+export function replaceTextContent(
+  content: string | ContentPart[],
+  text: string
+): string | ContentPart[] {
+  if (!Array.isArray(content)) {
+    return text
+  }
+
+  const attachments = getAttachmentParts(content)
+  if (attachments.length === 0) {
+    return text
+  }
+
+  return [
+    {
+      type: 'text',
+      text,
+    },
+    ...attachments,
+  ]
 }
 
 /**
@@ -147,8 +216,19 @@ export function isValidMessage(message: Message): boolean {
   const content = message.versions[0]?.content
   if (content === undefined) return false
 
-  // Exclude empty assistant messages (loading/streaming placeholders)
-  if (message.from === 'assistant' && !content.trim()) return false
+  if (typeof content === 'string') {
+    if (message.from === 'assistant' && !content.trim()) return false
+    return true
+  }
+
+  const hasText = content.some(
+    (part) => part.type === 'text' && part.text.trim() !== ''
+  )
+  const hasAttachment = content.some(
+    (part) => part.type === 'image_url' || part.type === 'file'
+  )
+
+  if (message.from === 'assistant' && !hasText && !hasAttachment) return false
 
   return true
 }
@@ -264,9 +344,11 @@ export function processStreamingContent(
   contentChunk?: string
 ): Message {
   const currentVersion = getCurrentVersion(message)
+  const existingContent =
+    typeof currentVersion.content === 'string' ? currentVersion.content : ''
   const fullContent = contentChunk
-    ? currentVersion.content + contentChunk
-    : currentVersion.content
+    ? existingContent + contentChunk
+    : existingContent
 
   const { reasoning, hasUnclosedTag } = parseThinkTags(fullContent)
 
@@ -291,7 +373,9 @@ export function finalizeMessage(
   apiReasoningContent?: string
 ): Message {
   const currentVersion = getCurrentVersion(message)
-  const { visibleContent, reasoning } = parseThinkTags(currentVersion.content)
+  const rawContent =
+    typeof currentVersion.content === 'string' ? currentVersion.content : ''
+  const { visibleContent, reasoning } = parseThinkTags(rawContent)
 
   // Priority:
   // 1. API reasoning_content passed as parameter (non-streaming response)
@@ -330,7 +414,7 @@ export function sanitizeMessagesOnLoad(messages: Message[]): Message[] {
   if (targetIndex === -1) return messages
 
   const finalized = finalizeMessage(messages[targetIndex])
-  const hasContent = finalized.versions?.[0]?.content?.trim()
+  const hasContent = getTextContent(finalized.versions?.[0]?.content || '').trim()
   const hasReasoning = finalized.reasoning?.content?.trim()
 
   const sanitized: Message =

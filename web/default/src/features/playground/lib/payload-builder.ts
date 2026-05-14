@@ -44,6 +44,17 @@ export function buildChatCompletionPayload(
     stream: config.stream,
   }
 
+  const latestRequestOptions = [...messages]
+    .reverse()
+    .find((message) => message.requestOptions)?.requestOptions
+
+  if (latestRequestOptions?.useSearch) {
+    payload.tools = [{ type: 'web_search_preview' }]
+    payload.web_search_options = {
+      search_context_size: 'medium',
+    }
+  }
+
   // Add enabled parameters
   const parameterKeys: Array<keyof ParameterEnabled> = [
     'temperature',
@@ -64,4 +75,11 @@ export function buildChatCompletionPayload(
   })
 
   return payload
+}
+
+export function buildPayloadWithoutTopP(
+  payload: ChatCompletionRequest
+): ChatCompletionRequest {
+  const { top_p: _topP, ...rest } = payload
+  return rest
 }

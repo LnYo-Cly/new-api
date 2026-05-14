@@ -17,7 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { STORAGE_KEYS } from '../constants'
-import type { PlaygroundConfig, ParameterEnabled, Message } from '../types'
+import type {
+  PlaygroundConfig,
+  ParameterEnabled,
+  Message,
+  ContentPart,
+} from '../types'
 import { sanitizeMessagesOnLoad } from './message-utils'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -42,6 +47,68 @@ function extractLegacyTextContent(content: unknown): string {
     .filter(Boolean)
 
   return textParts.join('\n')
+}
+
+function normalizeContentPart(part: unknown): ContentPart | null {
+  if (!isRecord(part) || typeof part.type !== 'string') {
+    return null
+  }
+
+  if (part.type === 'text' && typeof part.text === 'string') {
+    return {
+      type: 'text',
+      text: part.text,
+    }
+  }
+
+  if (
+    part.type === 'image_url' &&
+    isRecord(part.image_url) &&
+    typeof part.image_url.url === 'string'
+  ) {
+    return {
+      type: 'image_url',
+      image_url: {
+        url: part.image_url.url,
+      },
+      filename: typeof part.filename === 'string' ? part.filename : undefined,
+      mediaType: typeof part.mediaType === 'string' ? part.mediaType : undefined,
+    }
+  }
+
+  if (
+    part.type === 'file' &&
+    isRecord(part.file) &&
+    typeof part.file.filename === 'string' &&
+    typeof part.file.file_data === 'string'
+  ) {
+    return {
+      type: 'file',
+      file: {
+        filename: part.file.filename,
+        file_data: part.file.file_data,
+      },
+      mediaType: typeof part.mediaType === 'string' ? part.mediaType : undefined,
+    }
+  }
+
+  return null
+}
+
+function normalizeMessageContent(content: unknown): string | ContentPart[] {
+  if (typeof content === 'string') {
+    return content
+  }
+
+  if (!Array.isArray(content)) {
+    return ''
+  }
+
+  const normalized = content
+    .map(normalizeContentPart)
+    .filter((part): part is ContentPart => Boolean(part))
+
+  return normalized.length > 0 ? normalized : extractLegacyTextContent(content)
 }
 
 function normalizeLoadedMessages(saved: unknown): {
@@ -89,9 +156,7 @@ function normalizeLoadedMessages(saved: unknown): {
             }
 
             const content =
-              typeof version.content === 'string'
-                ? version.content
-                : extractLegacyTextContent(version.content)
+              normalizeMessageContent(version.content)
 
             return {
               id:
@@ -115,7 +180,7 @@ function normalizeLoadedMessages(saved: unknown): {
               : typeof rawMessage.id === 'string'
                 ? rawMessage.id
                 : `${index}`,
-          content: extractLegacyTextContent(rawMessage.content),
+          content: normalizeMessageContent(rawMessage.content),
         },
       ]
       mutated = true
@@ -137,6 +202,14 @@ function normalizeLoadedMessages(saved: unknown): {
             : `${index}`,
       from,
       versions,
+      requestOptions: isRecord(rawMessage.requestOptions)
+        ? {
+            useSearch:
+              typeof rawMessage.requestOptions.useSearch === 'boolean'
+                ? rawMessage.requestOptions.useSearch
+                : undefined,
+          }
+        : undefined,
       reasoning:
         typeof reasoningContent === 'string' && reasoningContent
           ? {

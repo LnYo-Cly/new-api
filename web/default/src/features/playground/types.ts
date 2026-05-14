@@ -16,20 +16,52 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { FileUIPart } from 'ai'
+
 // Message types
 export type MessageRole = 'user' | 'assistant' | 'system'
 
 export type MessageStatus = 'loading' | 'streaming' | 'complete' | 'error'
 
+export interface TextContentPart {
+  type: 'text'
+  text: string
+}
+
+export interface ImageContentPart {
+  type: 'image_url'
+  image_url: {
+    url: string
+  }
+  filename?: string
+  mediaType?: string
+}
+
+export interface FileContentPart {
+  type: 'file'
+  file: {
+    filename: string
+    file_data: string
+  }
+  mediaType?: string
+}
+
+export type ContentPart = TextContentPart | ImageContentPart | FileContentPart
+
+export interface MessageRequestOptions {
+  useSearch?: boolean
+}
+
 export interface MessageVersion {
   id: string
-  content: string
+  content: string | ContentPart[]
 }
 
 export interface Message {
   key: string
   from: MessageRole
   versions: MessageVersion[]
+  requestOptions?: MessageRequestOptions
   sources?: { href: string; title: string }[]
   reasoning?: {
     content: string
@@ -48,12 +80,12 @@ export interface ChatCompletionMessage {
   content: string | ContentPart[]
 }
 
-export interface ContentPart {
-  type: 'text' | 'image_url'
-  text?: string
-  image_url?: {
-    url: string
-  }
+export interface PlaygroundTool {
+  type: string
+}
+
+export interface WebSearchOptions {
+  search_context_size?: 'low' | 'medium' | 'high'
 }
 
 export interface ChatCompletionRequest {
@@ -61,6 +93,8 @@ export interface ChatCompletionRequest {
   group?: string
   messages: ChatCompletionMessage[]
   stream: boolean
+  tools?: PlaygroundTool[]
+  web_search_options?: WebSearchOptions
   temperature?: number
   top_p?: number
   max_tokens?: number
@@ -139,4 +173,10 @@ export interface GroupOption {
   value: string
   ratio: number
   desc?: string
+}
+
+export interface PlaygroundSubmitMessage {
+  text: string
+  files?: FileUIPart[]
+  useSearch?: boolean
 }

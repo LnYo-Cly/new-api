@@ -23,8 +23,12 @@ import { PlaygroundChat } from './components/playground-chat'
 import { PlaygroundInput } from './components/playground-input'
 import { DEFAULT_GROUP } from './constants'
 import { usePlaygroundState, useChatHandler } from './hooks'
-import { createUserMessage, createLoadingAssistantMessage } from './lib'
-import type { Message as MessageType } from './types'
+import {
+  createLoadingAssistantMessage,
+  createUserMessageFromSubmit,
+  replaceTextContent,
+} from './lib'
+import type { Message as MessageType, PlaygroundSubmitMessage } from './types'
 
 export function Playground() {
   const {
@@ -96,8 +100,8 @@ export function Playground() {
     setGroups(processedGroups)
   }, [groupsData, setGroups])
 
-  const handleSendMessage = (text: string) => {
-    const userMessage = createUserMessage(text)
+  const handleSendMessage = (message: PlaygroundSubmitMessage) => {
+    const userMessage = createUserMessageFromSubmit(message)
     const assistantMessage = createLoadingAssistantMessage()
 
     const newMessages = [...messages, userMessage, assistantMessage]
@@ -144,7 +148,15 @@ export function Playground() {
 
       const updated = messages.map((m) =>
         m.key === editingMessageKey
-          ? { ...m, versions: [{ ...m.versions[0], content: newContent }] }
+          ? {
+              ...m,
+              versions: [
+                {
+                  ...m.versions[0],
+                  content: replaceTextContent(m.versions[0]?.content || '', newContent),
+                },
+              ],
+            }
           : m
       )
 

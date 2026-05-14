@@ -48,9 +48,14 @@ import {
   SourcesContent,
   SourcesTrigger,
 } from '@/components/ai-elements/sources'
+import { Badge } from '@/components/ui/badge'
 import { MESSAGE_ROLES } from '../constants'
 import { getMessageContentStyles } from '../lib/message-styles'
-import { parseThinkTags } from '../lib/message-utils'
+import {
+  getAttachmentParts,
+  getTextContent,
+  parseThinkTags,
+} from '../lib/message-utils'
 import type { Message as MessageType } from '../types'
 import { MessageActions } from './message-actions'
 import { MessageError } from './message-error'
@@ -86,11 +91,11 @@ export function PlaygroundChat({
   useEffect(() => {
     if (!editingKey) return
     const message = messages.find((m) => m.key === editingKey)
-    const content = message?.versions?.[0]?.content || ''
+    const content = message?.versions?.[0]?.content
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setEditText(content)
+    setEditText(getTextContent(content || ''))
 
-    setOriginalText(content)
+    setOriginalText(getTextContent(content || ''))
   }, [editingKey, messages])
 
   const isEditing = (key: string) => editingKey === key
@@ -169,16 +174,22 @@ export function PlaygroundChat({
                                 !message.isReasoningStreaming &&
                                 (message.status === 'loading' ||
                                   (message.status === 'streaming' &&
-                                    !version.content))
+                                    !getTextContent(version.content)))
                               const showMessageContent =
                                 (message.from === MESSAGE_ROLES.USER ||
                                   !message.isReasoningStreaming) &&
-                                !!version.content
+                                (!!getTextContent(version.content) ||
+                                  getAttachmentParts(version.content).length > 0)
 
                               // Extract visible content (remove <think> tags for assistant messages)
                               const displayContent = isAssistant
-                                ? parseThinkTags(version.content).visibleContent
-                                : version.content
+                                ? parseThinkTags(
+                                    getTextContent(version.content)
+                                  ).visibleContent
+                                : getTextContent(version.content)
+                              const attachments = getAttachmentParts(
+                                version.content
+                              )
 
                               const actions = (
                                 <MessageActions
@@ -256,7 +267,38 @@ export function PlaygroundChat({
                                             getMessageContentStyles()
                                           )}
                                         >
-                                          <Response>{displayContent}</Response>
+                                          {!!displayContent && (
+                                            <Response>{displayContent}</Response>
+                                          )}
+                                          {attachments.length > 0 && (
+                                            <div className='mt-3 flex flex-wrap gap-2'>
+                                              {attachments.map(
+                                                (attachment, attachmentIndex) =>
+                                                  attachment.type ===
+                                                  'image_url' ? (
+                                                    <img
+                                                      alt={
+                                                        attachment.filename ||
+                                                        `attachment-${attachmentIndex}`
+                                                      }
+                                                      className='max-h-56 rounded-lg border object-contain'
+                                                      key={`${message.key}-attachment-${attachmentIndex}`}
+                                                      src={
+                                                        attachment.image_url.url
+                                                      }
+                                                    />
+                                                  ) : (
+                                                    <Badge
+                                                      className='max-w-full truncate py-1.5'
+                                                      key={`${message.key}-attachment-${attachmentIndex}`}
+                                                      variant='secondary'
+                                                    >
+                                                      {attachment.file.filename}
+                                                    </Badge>
+                                                  )
+                                              )}
+                                            </div>
+                                          )}
                                         </MessageContent>
                                         {actions}
                                       </>

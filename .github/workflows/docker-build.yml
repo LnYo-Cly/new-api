@@ -56,9 +56,11 @@ jobs:
           elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             TAG=${GITHUB_REF#refs/tags/}
           else
-            REF_NAME="${GITHUB_REF_NAME//\//-}"
-            SHORT_SHA="$(git rev-parse --short HEAD)"
-            TAG="${REF_NAME}-${SHORT_SHA}"
+            TAG="$(tr -d '\r\n[:space:]' < VERSION)"
+            if [ -z "${TAG}" ]; then
+              echo "::error::VERSION file is empty"
+              exit 1
+            fi
           fi
           echo "TAG=${TAG}" >> $GITHUB_ENV
           echo "tag=${TAG}" >> $GITHUB_OUTPUT

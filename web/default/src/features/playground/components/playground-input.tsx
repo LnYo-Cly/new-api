@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   PaperclipIcon,
   FileIcon,
@@ -32,6 +32,7 @@ import {
   CodeSquareIcon,
   GraduationCapIcon,
 } from 'lucide-react'
+import type { FileUIPart } from 'ai'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -42,18 +43,26 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   PromptInput,
+  PromptInputAttachment,
+  PromptInputAttachments,
   PromptInputButton,
   PromptInputFooter,
   PromptInputTextarea,
   PromptInputTools,
+  usePromptInputAttachments,
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
 import { ModelGroupSelector } from '@/components/model-group-selector'
-import type { ModelOption, GroupOption } from '../types'
+import { cn } from '@/lib/utils'
+import type {
+  ModelOption,
+  GroupOption,
+  PlaygroundSubmitMessage,
+} from '../types'
 
 interface PlaygroundInputProps {
-  onSubmit: (text: string) => void
+  onSubmit: (message: PlaygroundSubmitMessage) => void
   onStop?: () => void
   disabled?: boolean
   isGenerating?: boolean
@@ -64,6 +73,171 @@ interface PlaygroundInputProps {
   groups: GroupOption[]
   groupValue: string
   onGroupChange: (value: string) => void
+}
+
+function PlaygroundAttachmentTools({
+  disabled,
+  searchEnabled,
+  onToggleSearch,
+}: {
+  disabled?: boolean
+  searchEnabled: boolean
+  onToggleSearch: () => void
+}) {
+  const { t } = useTranslation()
+  const attachments = usePromptInputAttachments()
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const cameraInputRef = useRef<HTMLInputElement | null>(null)
+
+  const addFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    attachments.add(files)
+  }
+
+  const handleTakeScreenshot = async () => {
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.mediaDevices?.getDisplayMedia
+    ) {
+      toast.error(t('This browser does not support screenshot capture.'))
+      return
+    }
+
+    let stream: MediaStream | undefined
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false,
+      })
+
+      const track = stream.getVideoTracks()[0]
+      if (!track) {
+        throw new Error('no_video_track')
+      }
+
+      const video = document.createElement('video')
+      video.srcObject = stream
+      video.muted = true
+      video.playsInline = true
+      await video.play()
+
+      const canvas = document.createElement('canvas')
+      canvas.width = video.videoWidth || 1920
+      canvas.height = video.videoHeight || 1080
+      const context = canvas.getContext('2d')
+      if (!context) {
+        throw new Error('no_canvas_context')
+      }
+
+      context.drawImage(video, 0, 0, canvas.width, canvas.height)
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, 'image/png')
+      )
+      if (!blob) {
+        throw new Error('no_blob')
+      }
+
+      attachments.add([
+        new File([blob], `screenshot-${Date.now()}.png`, {
+          type: 'image/png',
+        }),
+      ])
+    } catch {
+      toast.error(t('Failed to capture screenshot.'))
+    } finally {
+      stream?.getTracks().forEach((track) => track.stop())
+    }
+  }
+
+  return (
+    <>
+      <input
+        className='hidden'
+        multiple
+        onChange={(event) => {
+          addFiles(event.currentTarget.files)
+          event.currentTarget.value = ''
+        }}
+        ref={fileInputRef}
+        type='file'
+      />
+      <input
+        accept='image/*'
+        className='hidden'
+        multiple
+        onChange={(event) => {
+          addFiles(event.currentTarget.files)
+          event.currentTarget.value = ''
+        }}
+        ref={imageInputRef}
+        type='file'
+      />
+      <input
+        accept='image/*'
+        capture='environment'
+        className='hidden'
+        onChange={(event) => {
+          addFiles(event.currentTarget.files)
+          event.currentTarget.value = ''
+        }}
+        ref={cameraInputRef}
+        type='file'
+      />
+
+      <PromptInputTools>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <PromptInputButton
+                className='border font-medium'
+                disabled={disabled}
+                variant='outline'
+              />
+            }
+          >
+            <PaperclipIcon size={16} />
+            <span className='hidden sm:inline'>{t('Attach')}</span>
+            <span className='sr-only sm:hidden'>{t('Attach')}</span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='start'>
+            <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+              <FileIcon className='mr-2' size={16} />
+              {t('Upload file')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
+              <ImageIcon className='mr-2' size={16} />
+              {t('Upload photo')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleTakeScreenshot}>
+              <ScreenShareIcon className='mr-2' size={16} />
+              {t('Take screenshot')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => cameraInputRef.current?.click()}>
+              <CameraIcon className='mr-2' size={16} />
+              {t('Take photo')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <PromptInputButton
+          aria-pressed={searchEnabled}
+          className={cn(
+            'border font-medium',
+            searchEnabled &&
+              'border-primary bg-primary/10 text-primary hover:bg-primary/15'
+          )}
+          disabled={disabled}
+          onClick={onToggleSearch}
+          variant='outline'
+        >
+          <GlobeIcon size={16} />
+          <span className='hidden sm:inline'>{t('Search')}</span>
+          <span className='sr-only sm:hidden'>{t('Search')}</span>
+        </PromptInputButton>
+      </PromptInputTools>
+    </>
+  )
 }
 
 const suggestions = [
@@ -90,30 +264,44 @@ export function PlaygroundInput({
 }: PlaygroundInputProps) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
+  const [searchEnabled, setSearchEnabled] = useState(false)
 
   const isModelSelectDisabled =
     disabled || isModelLoading || models.length === 0
   const isGroupSelectDisabled = disabled || groups.length === 0
 
   const handleSubmit = (message: PromptInputMessage) => {
-    if (!message.text?.trim() || disabled) return
-    onSubmit(message.text)
+    const trimmedText = message.text?.trim() || ''
+    const files = (message.files || []) as FileUIPart[]
+    if ((!trimmedText && files.length === 0) || disabled) return
+    onSubmit({
+      text: trimmedText,
+      files,
+      useSearch: searchEnabled,
+    })
     setText('')
   }
 
-  const handleFileAction = (action: string) => {
-    toast.info(t('Feature in development'), {
-      description: action,
-    })
-  }
-
   const handleSuggestionClick = (suggestion: string) => {
-    onSubmit(suggestion)
+    onSubmit({
+      text: suggestion,
+      useSearch: searchEnabled,
+    })
   }
 
   return (
     <div className='grid shrink-0 gap-4 px-1 md:pb-4'>
-      <PromptInput groupClassName='rounded-xl' onSubmit={handleSubmit}>
+      <PromptInput
+        groupClassName='rounded-xl'
+        multiple
+        onSubmit={handleSubmit}
+      >
+        <div className='px-5 pt-3'>
+          <PromptInputAttachments>
+            {(attachment) => <PromptInputAttachment data={attachment} />}
+          </PromptInputAttachments>
+        </div>
+
         <PromptInputTextarea
           autoComplete='off'
           autoCorrect='off'
@@ -127,60 +315,11 @@ export function PlaygroundInput({
         />
 
         <PromptInputFooter className='p-2.5'>
-          <PromptInputTools>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <PromptInputButton
-                    className='border font-medium'
-                    disabled={disabled}
-                    variant='outline'
-                  />
-                }
-              >
-                <PaperclipIcon size={16} />
-                <span className='hidden sm:inline'>{t('Attach')}</span>
-                <span className='sr-only sm:hidden'>{t('Attach')}</span>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='start'>
-                <DropdownMenuItem
-                  onClick={() => handleFileAction('upload-file')}
-                >
-                  <FileIcon className='mr-2' size={16} />
-                  {t('Upload file')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleFileAction('upload-photo')}
-                >
-                  <ImageIcon className='mr-2' size={16} />
-                  {t('Upload photo')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleFileAction('take-screenshot')}
-                >
-                  <ScreenShareIcon className='mr-2' size={16} />
-                  {t('Take screenshot')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleFileAction('take-photo')}
-                >
-                  <CameraIcon className='mr-2' size={16} />
-                  {t('Take photo')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <PromptInputButton
-              className='border font-medium'
-              disabled={disabled}
-              onClick={() => toast.info(t('Search feature in development'))}
-              variant='outline'
-            >
-              <GlobeIcon size={16} />
-              <span className='hidden sm:inline'>{t('Search')}</span>
-              <span className='sr-only sm:hidden'>{t('Search')}</span>
-            </PromptInputButton>
-          </PromptInputTools>
+          <PlaygroundAttachmentTools
+            disabled={disabled}
+            searchEnabled={searchEnabled}
+            onToggleSearch={() => setSearchEnabled((prev) => !prev)}
+          />
 
           <div className='flex items-center gap-1.5 md:gap-2'>
             <ModelGroupSelector
@@ -206,7 +345,7 @@ export function PlaygroundInput({
             ) : (
               <PromptInputButton
                 className='text-foreground font-medium'
-                disabled={disabled || !text.trim()}
+                disabled={disabled}
                 type='submit'
                 variant='secondary'
               >

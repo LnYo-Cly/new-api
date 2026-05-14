@@ -22,6 +22,7 @@ import { sendChatCompletion } from '../api'
 import { MESSAGE_STATUS, ERROR_MESSAGES } from '../constants'
 import {
   buildChatCompletionPayload,
+  buildPayloadWithoutTopP,
   updateAssistantMessageWithError,
   updateLastAssistantMessage,
   processStreamingContent,
@@ -34,6 +35,16 @@ interface UseChatHandlerOptions {
   config: PlaygroundConfig
   parameterEnabled: ParameterEnabled
   onMessageUpdate: (updater: (prev: Message[]) => Message[]) => void
+}
+
+function shouldRetryWithoutTopP(error: string, errorCode?: string): boolean {
+  const normalized = `${errorCode || ''} ${error}`.toLowerCase()
+  return (
+    normalized.includes('top_p') &&
+    (normalized.includes('unsupported parameter') ||
+      normalized.includes('unsupported value') ||
+      normalized.includes('unknown parameter'))
+  )
 }
 
 /**
@@ -103,17 +114,35 @@ export function useChatHandler({
   // Send streaming chat request
   const sendStreamingChat = useCallback(
     (messages: Message[]) => {
-      const payload = buildChatCompletionPayload(
+      const basePayload = buildChatCompletionPayload(
         messages,
         config,
         parameterEnabled
       )
-      sendStreamRequest(
-        payload,
-        handleStreamUpdate,
-        handleStreamComplete,
-        handleStreamError
-      )
+      let retriedWithoutTopP = false
+
+      const runStream = (payload: ReturnType<typeof buildChatCompletionPayload>) => {
+        sendStreamRequest(
+          payload,
+          handleStreamUpdate,
+          handleStreamComplete,
+          (error, errorCode) => {
+            if (
+              !retriedWithoutTopP &&
+              payload.top_p !== undefined &&
+              shouldRetryWithoutTopP(error, errorCode)
+            ) {
+              retriedWithoutTopP = true
+              runStream(buildPayloadWithoutTopP(payload))
+              return
+            }
+
+            handleStreamError(error, errorCode)
+          }
+        )
+      }
+
+      runStream(basePayload)
     },
     [
       config,
@@ -128,14 +157,39 @@ export function useChatHandler({
   // Send non-streaming chat request
   const sendNonStreamingChat = useCallback(
     async (messages: Message[]) => {
-      const payload = buildChatCompletionPayload(
+      const basePayload = buildChatCompletionPayload(
         messages,
         config,
         parameterEnabled
       )
 
       try {
-        const response = await sendChatCompletion(payload)
+        let response
+        try {
+          response = await sendChatCompletion(basePayload)
+        } catch (error: unknown) {
+          const err = error as {
+            response?: {
+              data?: { message?: string; error?: { code?: string } }
+            }
+            message?: string
+          }
+          const errorMessage =
+            err?.response?.data?.message ||
+            err?.message ||
+            ERROR_MESSAGES.API_REQUEST_ERROR
+          const errorCode = err?.response?.data?.error?.code || undefined
+
+          if (
+            basePayload.top_p !== undefined &&
+            shouldRetryWithoutTopP(errorMessage, errorCode)
+          ) {
+            response = await sendChatCompletion(buildPayloadWithoutTopP(basePayload))
+          } else {
+            throw error
+          }
+        }
+
         const choice = response.choices?.[0]
         if (!choice) return
 
