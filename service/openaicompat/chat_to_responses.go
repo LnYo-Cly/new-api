@@ -35,6 +35,14 @@ func normalizeChatImageURLToString(v any) any {
 	}
 }
 
+func normalizeChatFileData(v string) string {
+	trimmed := strings.TrimSpace(v)
+	if idx := strings.Index(trimmed, "base64,"); idx >= 0 {
+		return trimmed[idx+7:]
+	}
+	return trimmed
+}
+
 func convertChatResponseFormatToResponsesText(reqFormat *dto.ResponseFormat) json.RawMessage {
 	if reqFormat == nil || strings.TrimSpace(reqFormat.Type) == "" {
 		return nil
@@ -234,10 +242,24 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 					"input_audio": part.InputAudio,
 				})
 			case dto.ContentTypeFile:
-				contentParts = append(contentParts, map[string]any{
+				file := part.GetFile()
+				if file == nil {
+					continue
+				}
+
+				inputFile := map[string]any{
 					"type": "input_file",
-					"file": part.File,
-				})
+				}
+				if strings.TrimSpace(file.FileId) != "" {
+					inputFile["file_id"] = file.FileId
+				}
+				if strings.TrimSpace(file.FileData) != "" {
+					inputFile["file_data"] = normalizeChatFileData(file.FileData)
+				}
+				if strings.TrimSpace(file.FileName) != "" {
+					inputFile["filename"] = file.FileName
+				}
+				contentParts = append(contentParts, inputFile)
 			case dto.ContentTypeVideoUrl:
 				contentParts = append(contentParts, map[string]any{
 					"type":      "input_video",

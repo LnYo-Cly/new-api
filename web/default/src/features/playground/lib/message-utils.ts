@@ -117,6 +117,12 @@ export function buildMessageContent(
     return text
   }
 
+  const extractFileData = (url: string) => {
+    const trimmed = url.trim()
+    const match = trimmed.match(/^data:.*?;base64,(.+)$/)
+    return match?.[1] || trimmed
+  }
+
   const parts: ContentPart[] = [
     {
       type: 'text',
@@ -134,7 +140,7 @@ export function buildMessageContent(
             type: 'file',
             file: {
               filename: file.filename || 'attachment',
-              file_data: file.url!.trim(),
+              file_data: extractFileData(file.url!),
             },
             mediaType: file.mediaType,
           } as const)
