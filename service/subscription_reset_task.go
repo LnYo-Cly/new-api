@@ -31,7 +31,7 @@ func StartSubscriptionQuotaResetTask() {
 		if !common.IsMasterNode {
 			return
 		}
-		model.RegisterScheduledTask(ScheduledTaskDefinition{
+		model.RegisterScheduledTask(model.ScheduledTaskDefinition{
 			TaskKey:         "subscription_quota_reset",
 			Name:            "Subscription Quota Reset",
 			Category:        "billing",

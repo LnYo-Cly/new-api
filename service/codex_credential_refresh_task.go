@@ -38,7 +38,7 @@ func StartCodexCredentialAutoRefreshTask() {
 		if !common.IsMasterNode {
 			return
 		}
-		model.RegisterScheduledTask(ScheduledTaskDefinition{
+		model.RegisterScheduledTask(model.ScheduledTaskDefinition{
 			TaskKey:         "codex_credential_refresh",
 			Name:            "Codex Credential Refresh",
 			Category:        "codex",
