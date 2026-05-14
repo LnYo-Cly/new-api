@@ -31,14 +31,39 @@ func StartSubscriptionQuotaResetTask() {
 		if !common.IsMasterNode {
 			return
 		}
+		model.RegisterScheduledTask(ScheduledTaskDefinition{
+			TaskKey:         "subscription_quota_reset",
+			Name:            "Subscription Quota Reset",
+			Category:        "billing",
+			Description:     "Expire due subscriptions, reset quotas, and clean pre-consume records.",
+			Source:          "service.subscription_reset_task",
+			ScheduleMode:    "interval",
+			IntervalSeconds: int(subscriptionResetTickInterval / time.Second),
+			Enabled:         true,
+			CanManualRun:    true,
+			RunNow: func(ctx context.Context) (string, error) {
+				runSubscriptionQuotaResetOnce()
+				return "subscription quota maintenance completed", nil
+			},
+		})
 		gopool.Go(func() {
 			logger.LogInfo(context.Background(), fmt.Sprintf("subscription quota reset task started: tick=%s", subscriptionResetTickInterval))
 			ticker := time.NewTicker(subscriptionResetTickInterval)
 			defer ticker.Stop()
 
-			runSubscriptionQuotaResetOnce()
-			for range ticker.C {
+			nextRunAt := time.Now().Add(subscriptionResetTickInterval).Unix()
+			model.SetScheduledTaskState("subscription_quota_reset", true, nextRunAt)
+			_, _ = model.ObserveScheduledTaskRun(context.Background(), "subscription_quota_reset", model.ScheduledTaskTriggerBoot, nextRunAt, func(ctx context.Context) (string, error) {
 				runSubscriptionQuotaResetOnce()
+				return "subscription quota maintenance completed", nil
+			})
+			for range ticker.C {
+				nextRunAt = time.Now().Add(subscriptionResetTickInterval).Unix()
+				model.SetScheduledTaskState("subscription_quota_reset", true, nextRunAt)
+				_, _ = model.ObserveScheduledTaskRun(context.Background(), "subscription_quota_reset", model.ScheduledTaskTriggerAuto, nextRunAt, func(ctx context.Context) (string, error) {
+					runSubscriptionQuotaResetOnce()
+					return "subscription quota maintenance completed", nil
+				})
 			}
 		})
 	})

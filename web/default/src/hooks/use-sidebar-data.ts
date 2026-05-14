@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   LayoutDashboard,
   Activity,
+  Clock3,
   Key,
   FileText,
   Mail,
@@ -76,6 +77,11 @@ export function useSidebarData(): SidebarData {
       title: t('Subscription Management'),
       url: '/subscriptions',
       icon: CreditCard,
+    },
+    {
+      title: t('Scheduled Tasks'),
+      url: '/scheduled-tasks',
+      icon: Clock3,
     },
   ]
 

@@ -353,6 +353,14 @@ func SetApiRouter(router *gin.Engine) {
 			taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
 		}
 
+		scheduledTaskRoute := apiRouter.Group("/scheduled_tasks")
+		scheduledTaskRoute.Use(middleware.AdminAuth())
+		{
+			scheduledTaskRoute.GET("/", controller.GetScheduledTasks)
+			scheduledTaskRoute.GET("/:key/runs", controller.GetScheduledTaskRuns)
+			scheduledTaskRoute.POST("/:key/run", controller.RunScheduledTaskNow)
+		}
+
 		vendorRoute := apiRouter.Group("/vendors")
 		vendorRoute.Use(middleware.AdminAuth())
 		{

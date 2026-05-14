@@ -89,51 +89,64 @@ func sweepTimedOutTasks(ctx context.Context) {
 
 // TaskPollingLoop 主轮询循环，每 15 秒检查一次未完成的任务
 func TaskPollingLoop() {
+	model.RegisterScheduledTask(model.ScheduledTaskDefinition{
+		TaskKey:         "task_polling",
+		Name:            "Async Task Polling",
+		Category:        "tasks",
+		Description:     "Poll incomplete async tasks and synchronize upstream status.",
+		Source:          "service.task_polling",
+		ScheduleMode:    "interval",
+		IntervalSeconds: 15,
+		Enabled:         true,
+		CanManualRun:    false,
+	})
 	for {
 		time.Sleep(time.Duration(15) * time.Second)
-		common.SysLog("任务进度轮询开始")
-		ctx := context.TODO()
-		sweepTimedOutTasks(ctx)
-		allTasks := model.GetAllUnFinishSyncTasks(constant.TaskQueryLimit)
-		platformTask := make(map[constant.TaskPlatform][]*model.Task)
-		for _, t := range allTasks {
-			platformTask[t.Platform] = append(platformTask[t.Platform], t)
-		}
-		for platform, tasks := range platformTask {
-			if len(tasks) == 0 {
-				continue
+		nextRunAt := time.Now().Add(15 * time.Second).Unix()
+		model.SetScheduledTaskState("task_polling", true, nextRunAt)
+		_, _ = model.ObserveScheduledTaskRun(context.Background(), "task_polling", model.ScheduledTaskTriggerAuto, nextRunAt, func(ctx context.Context) (string, error) {
+			common.SysLog("任务进度轮询开始")
+			sweepTimedOutTasks(ctx)
+			allTasks := model.GetAllUnFinishSyncTasks(constant.TaskQueryLimit)
+			platformTask := make(map[constant.TaskPlatform][]*model.Task)
+			for _, t := range allTasks {
+				platformTask[t.Platform] = append(platformTask[t.Platform], t)
 			}
-			taskChannelM := make(map[int][]string)
-			taskM := make(map[string]*model.Task)
-			nullTaskIds := make([]int64, 0)
-			for _, task := range tasks {
-				upstreamID := task.GetUpstreamTaskID()
-				if upstreamID == "" {
-					// 统计失败的未完成任务
-					nullTaskIds = append(nullTaskIds, task.ID)
+			for platform, tasks := range platformTask {
+				if len(tasks) == 0 {
 					continue
 				}
-				taskM[upstreamID] = task
-				taskChannelM[task.ChannelId] = append(taskChannelM[task.ChannelId], upstreamID)
-			}
-			if len(nullTaskIds) > 0 {
-				err := model.TaskBulkUpdateByID(nullTaskIds, map[string]any{
-					"status":   "FAILURE",
-					"progress": "100%",
-				})
-				if err != nil {
-					logger.LogError(ctx, fmt.Sprintf("Fix null task_id task error: %v", err))
-				} else {
-					logger.LogInfo(ctx, fmt.Sprintf("Fix null task_id task success: %v", nullTaskIds))
+				taskChannelM := make(map[int][]string)
+				taskM := make(map[string]*model.Task)
+				nullTaskIds := make([]int64, 0)
+				for _, task := range tasks {
+					upstreamID := task.GetUpstreamTaskID()
+					if upstreamID == "" {
+						nullTaskIds = append(nullTaskIds, task.ID)
+						continue
+					}
+					taskM[upstreamID] = task
+					taskChannelM[task.ChannelId] = append(taskChannelM[task.ChannelId], upstreamID)
 				}
+				if len(nullTaskIds) > 0 {
+					err := model.TaskBulkUpdateByID(nullTaskIds, map[string]any{
+						"status":   "FAILURE",
+						"progress": "100%",
+					})
+					if err != nil {
+						logger.LogError(ctx, fmt.Sprintf("Fix null task_id task error: %v", err))
+					} else {
+						logger.LogInfo(ctx, fmt.Sprintf("Fix null task_id task success: %v", nullTaskIds))
+					}
+				}
+				if len(taskChannelM) == 0 {
+					continue
+				}
+				DispatchPlatformUpdate(platform, taskChannelM, taskM)
 			}
-			if len(taskChannelM) == 0 {
-				continue
-			}
-
-			DispatchPlatformUpdate(platform, taskChannelM, taskM)
-		}
-		common.SysLog("任务进度轮询完成")
+			common.SysLog("任务进度轮询完成")
+			return "async task polling completed", nil
+		})
 	}
 }
 

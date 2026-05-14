@@ -38,6 +38,21 @@ func StartCodexCredentialAutoRefreshTask() {
 		if !common.IsMasterNode {
 			return
 		}
+		model.RegisterScheduledTask(ScheduledTaskDefinition{
+			TaskKey:         "codex_credential_refresh",
+			Name:            "Codex Credential Refresh",
+			Category:        "codex",
+			Description:     "Refresh Codex OAuth credentials before they expire.",
+			Source:          "service.codex_credential_refresh_task",
+			ScheduleMode:    "interval",
+			IntervalSeconds: int(codexCredentialRefreshTickInterval / time.Second),
+			Enabled:         true,
+			CanManualRun:    true,
+			RunNow: func(ctx context.Context) (string, error) {
+				runCodexCredentialAutoRefreshOnce()
+				return "codex credential refresh sweep completed", nil
+			},
+		})
 
 		gopool.Go(func() {
 			logger.LogInfo(context.Background(), fmt.Sprintf("codex credential auto-refresh task started: tick=%s threshold=%s", codexCredentialRefreshTickInterval, codexCredentialRefreshThreshold))
@@ -45,9 +60,19 @@ func StartCodexCredentialAutoRefreshTask() {
 			ticker := time.NewTicker(codexCredentialRefreshTickInterval)
 			defer ticker.Stop()
 
-			runCodexCredentialAutoRefreshOnce()
-			for range ticker.C {
+			nextRunAt := time.Now().Add(codexCredentialRefreshTickInterval).Unix()
+			model.SetScheduledTaskState("codex_credential_refresh", true, nextRunAt)
+			_, _ = model.ObserveScheduledTaskRun(context.Background(), "codex_credential_refresh", model.ScheduledTaskTriggerBoot, nextRunAt, func(ctx context.Context) (string, error) {
 				runCodexCredentialAutoRefreshOnce()
+				return "codex credential refresh sweep completed", nil
+			})
+			for range ticker.C {
+				nextRunAt = time.Now().Add(codexCredentialRefreshTickInterval).Unix()
+				model.SetScheduledTaskState("codex_credential_refresh", true, nextRunAt)
+				_, _ = model.ObserveScheduledTaskRun(context.Background(), "codex_credential_refresh", model.ScheduledTaskTriggerAuto, nextRunAt, func(ctx context.Context) (string, error) {
+					runCodexCredentialAutoRefreshOnce()
+					return "codex credential refresh sweep completed", nil
+				})
 			}
 		})
 	})

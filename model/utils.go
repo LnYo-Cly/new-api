@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -31,10 +32,30 @@ func init() {
 }
 
 func InitBatchUpdater() {
+	RegisterScheduledTask(ScheduledTaskDefinition{
+		TaskKey:         "batch_updater",
+		Name:            "Batch Updater",
+		Category:        "maintenance",
+		Description:     "Flush in-memory batch update counters to database.",
+		Source:          "model.utils",
+		ScheduleMode:    "interval",
+		IntervalSeconds: common.BatchUpdateInterval,
+		Enabled:         true,
+		CanManualRun:    true,
+		RunNow: func(ctx context.Context) (string, error) {
+			batchUpdate()
+			return "batch updater flushed pending records", nil
+		},
+	})
 	gopool.Go(func() {
 		for {
 			time.Sleep(time.Duration(common.BatchUpdateInterval) * time.Second)
-			batchUpdate()
+			nextRunAt := time.Now().Add(time.Duration(common.BatchUpdateInterval) * time.Second).Unix()
+			SetScheduledTaskState("batch_updater", true, nextRunAt)
+			_, _ = ObserveScheduledTaskRun(context.Background(), "batch_updater", ScheduledTaskTriggerAuto, nextRunAt, func(ctx context.Context) (string, error) {
+				batchUpdate()
+				return "batch updater flushed pending records", nil
+			})
 		}
 	})
 }

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -90,10 +91,30 @@ func InitChannelCache() {
 }
 
 func SyncChannelCache(frequency int) {
+	RegisterScheduledTask(ScheduledTaskDefinition{
+		TaskKey:         "channel_cache_sync",
+		Name:            "Channel Cache Sync",
+		Category:        "channels",
+		Description:     "Refresh in-memory channel cache from database.",
+		Source:          "model.channel_cache",
+		ScheduleMode:    "interval",
+		IntervalSeconds: frequency,
+		Enabled:         true,
+		CanManualRun:    true,
+		RunNow: func(ctx context.Context) (string, error) {
+			InitChannelCache()
+			return "channel cache reloaded", nil
+		},
+	})
 	for {
 		time.Sleep(time.Duration(frequency) * time.Second)
-		common.SysLog("syncing channels from database")
-		InitChannelCache()
+		nextRunAt := time.Now().Add(time.Duration(frequency) * time.Second).Unix()
+		SetScheduledTaskState("channel_cache_sync", true, nextRunAt)
+		_, _ = ObserveScheduledTaskRun(context.Background(), "channel_cache_sync", ScheduledTaskTriggerAuto, nextRunAt, func(ctx context.Context) (string, error) {
+			common.SysLog("syncing channels from database")
+			InitChannelCache()
+			return "channel cache reloaded", nil
+		})
 	}
 }
 

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -496,10 +497,36 @@ func UpdateAllChannelsBalance(c *gin.Context) {
 }
 
 func AutomaticallyUpdateChannels(frequency int) {
+	model.RegisterScheduledTask(model.ScheduledTaskDefinition{
+		TaskKey:         "channel_balance_update",
+		Name:            "Channel Balance Update",
+		Category:        "channels",
+		Description:     "Refresh all channel balances on a fixed interval.",
+		Source:          "controller.channel-billing",
+		ScheduleMode:    "interval",
+		IntervalSeconds: frequency * 60,
+		Enabled:         true,
+		CanManualRun:    true,
+		RunNow: func(ctx context.Context) (string, error) {
+			err := updateAllChannelsBalance()
+			if err != nil {
+				return "", err
+			}
+			return "all channel balances updated", nil
+		},
+	})
 	for {
 		time.Sleep(time.Duration(frequency) * time.Minute)
-		common.SysLog("updating all channels")
-		_ = updateAllChannelsBalance()
-		common.SysLog("channels update done")
+		nextRunAt := time.Now().Add(time.Duration(frequency) * time.Minute).Unix()
+		model.SetScheduledTaskState("channel_balance_update", true, nextRunAt)
+		_, _ = model.ObserveScheduledTaskRun(context.Background(), "channel_balance_update", model.ScheduledTaskTriggerAuto, nextRunAt, func(ctx context.Context) (string, error) {
+			common.SysLog("updating all channels")
+			err := updateAllChannelsBalance()
+			common.SysLog("channels update done")
+			if err != nil {
+				return "", err
+			}
+			return "all channel balances updated", nil
+		})
 	}
 }

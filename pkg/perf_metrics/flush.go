@@ -1,6 +1,7 @@
 package perfmetrics
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"time"
@@ -15,11 +16,16 @@ func flushLoop() {
 		interval := perf_metrics_setting.GetFlushIntervalMinutes()
 		time.Sleep(time.Duration(interval) * time.Minute)
 		setting := perf_metrics_setting.GetSetting()
+		model.SetScheduledTaskState("perf_metrics_flush", setting.Enabled, time.Now().Add(time.Duration(interval)*time.Minute).Unix())
 		if !setting.Enabled {
 			continue
 		}
-		flushCompletedBuckets()
-		cleanupExpiredMetrics(setting.RetentionDays)
+		nextRunAt := time.Now().Add(time.Duration(interval) * time.Minute).Unix()
+		_, _ = model.ObserveScheduledTaskRun(context.Background(), "perf_metrics_flush", model.ScheduledTaskTriggerAuto, nextRunAt, func(ctx context.Context) (string, error) {
+			flushCompletedBuckets()
+			cleanupExpiredMetrics(setting.RetentionDays)
+			return fmt.Sprintf("metrics flushed, retention_days=%d", setting.RetentionDays), nil
+		})
 	}
 }
 

@@ -21,6 +21,16 @@ var hotBuckets sync.Map
 const seriesSchema = "dbcd0a3c01b55203"
 
 func Init() {
+	model.RegisterScheduledTask(model.ScheduledTaskDefinition{
+		TaskKey:      "perf_metrics_flush",
+		Name:         "Performance Metrics Flush",
+		Category:     "metrics",
+		Description:  "Flush in-memory performance metrics buckets to database.",
+		Source:       "pkg.perf_metrics",
+		ScheduleMode: "interval",
+		Enabled:      perf_metrics_setting.GetSetting().Enabled,
+		CanManualRun: false,
+	})
 	go flushLoop()
 }
 

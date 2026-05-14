@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -22,10 +23,30 @@ type QuotaData struct {
 }
 
 func UpdateQuotaData() {
-	for {
-		if common.DataExportEnabled {
-			common.SysLog("正在更新数据看板数据...")
+	RegisterScheduledTask(ScheduledTaskDefinition{
+		TaskKey:         "quota_data_export",
+		Name:            "Quota Data Export",
+		Category:        "dashboard",
+		Description:     "Aggregate quota usage data for dashboard charts.",
+		Source:          "model.usedata",
+		ScheduleMode:    "interval",
+		IntervalSeconds: common.DataExportInterval * 60,
+		Enabled:         common.DataExportEnabled,
+		CanManualRun:    true,
+		RunNow: func(ctx context.Context) (string, error) {
 			SaveQuotaDataCache()
+			return "quota dashboard cache updated", nil
+		},
+	})
+	for {
+		nextRunAt := time.Now().Add(time.Duration(common.DataExportInterval) * time.Minute).Unix()
+		SetScheduledTaskState("quota_data_export", common.DataExportEnabled, nextRunAt)
+		if common.DataExportEnabled {
+			_, _ = ObserveScheduledTaskRun(context.Background(), "quota_data_export", ScheduledTaskTriggerAuto, nextRunAt, func(ctx context.Context) (string, error) {
+				common.SysLog("正在更新数据看板数据...")
+				SaveQuotaDataCache()
+				return "quota dashboard cache updated", nil
+			})
 		}
 		time.Sleep(time.Duration(common.DataExportInterval) * time.Minute)
 	}

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"time"
@@ -202,10 +203,31 @@ func loadOptionsFromDatabase() {
 }
 
 func SyncOptions(frequency int) {
+	RegisterScheduledTask(ScheduledTaskDefinition{
+		TaskKey:         "sync_options",
+		Name:            "Option Sync",
+		Category:        "maintenance",
+		Description:     "Refresh in-memory options from database on a fixed interval.",
+		Source:          "model.option",
+		ScheduleMode:    "interval",
+		IntervalSeconds: frequency,
+		Enabled:         true,
+		CanManualRun:    true,
+		RunNow: func(ctx context.Context) (string, error) {
+			loadOptionsFromDatabase()
+			return "options reloaded from database", nil
+		},
+	})
 	for {
 		time.Sleep(time.Duration(frequency) * time.Second)
-		common.SysLog("syncing options from database")
-		loadOptionsFromDatabase()
+		enabled := true
+		nextRunAt := time.Now().Add(time.Duration(frequency) * time.Second).Unix()
+		SetScheduledTaskState("sync_options", enabled, nextRunAt)
+		_, _ = ObserveScheduledTaskRun(context.Background(), "sync_options", ScheduledTaskTriggerAuto, nextRunAt, func(ctx context.Context) (string, error) {
+			common.SysLog("syncing options from database")
+			loadOptionsFromDatabase()
+			return "options reloaded from database", nil
+		})
 	}
 }
 

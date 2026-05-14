@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -976,20 +977,50 @@ func AutomaticallyTestChannels() {
 	if !common.IsMasterNode {
 		return
 	}
+	model.RegisterScheduledTask(model.ScheduledTaskDefinition{
+		TaskKey:      "channel_auto_test",
+		Name:         "Channel Auto Test",
+		Category:     "channels",
+		Description:  "Automatically test all channels using the monitoring interval.",
+		Source:       "controller.channel-test",
+		ScheduleMode: "interval",
+		Enabled:      operation_setting.GetMonitorSetting().AutoTestChannelEnabled,
+		CanManualRun: true,
+		RunNow: func(ctx context.Context) (string, error) {
+			err := testAllChannels(false)
+			if err != nil {
+				return "", err
+			}
+			return "all channels tested", nil
+		},
+	})
 	autoTestChannelsOnce.Do(func() {
 		for {
-			if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
+			monitorSetting := operation_setting.GetMonitorSetting()
+			if !monitorSetting.AutoTestChannelEnabled {
+				model.SetScheduledTaskState("channel_auto_test", false, 0)
 				time.Sleep(1 * time.Minute)
 				continue
 			}
+			nextRunAt := time.Now().Add(time.Duration(int(math.Round(monitorSetting.AutoTestChannelMinutes))) * time.Minute).Unix()
+			model.SetScheduledTaskState("channel_auto_test", true, nextRunAt)
 			for {
 				frequency := operation_setting.GetMonitorSetting().AutoTestChannelMinutes
 				time.Sleep(time.Duration(int(math.Round(frequency))) * time.Minute)
-				common.SysLog(fmt.Sprintf("automatically test channels with interval %f minutes", frequency))
-				common.SysLog("automatically testing all channels")
-				_ = testAllChannels(false)
-				common.SysLog("automatically channel test finished")
+				nextRunAt = time.Now().Add(time.Duration(int(math.Round(frequency))) * time.Minute).Unix()
+				model.SetScheduledTaskState("channel_auto_test", true, nextRunAt)
+				_, _ = model.ObserveScheduledTaskRun(context.Background(), "channel_auto_test", model.ScheduledTaskTriggerAuto, nextRunAt, func(ctx context.Context) (string, error) {
+					common.SysLog(fmt.Sprintf("automatically test channels with interval %f minutes", frequency))
+					common.SysLog("automatically testing all channels")
+					err := testAllChannels(false)
+					common.SysLog("automatically channel test finished")
+					if err != nil {
+						return "", err
+					}
+					return "all channels tested", nil
+				})
 				if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
+					model.SetScheduledTaskState("channel_auto_test", false, 0)
 					break
 				}
 			}

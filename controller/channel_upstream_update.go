@@ -760,14 +760,39 @@ func StartChannelUpstreamModelUpdateTask() {
 			intervalMinutes = channelUpstreamModelUpdateTaskDefaultIntervalMinutes
 		}
 		interval := time.Duration(intervalMinutes) * time.Minute
+		model.RegisterScheduledTask(model.ScheduledTaskDefinition{
+			TaskKey:         "channel_upstream_update",
+			Name:            "Channel Upstream Update",
+			Category:        "channels",
+			Description:     "Detect and apply upstream model changes for channels.",
+			Source:          "controller.channel_upstream_update",
+			ScheduleMode:    "interval",
+			IntervalSeconds: intervalMinutes * 60,
+			Enabled:         true,
+			CanManualRun:    true,
+			RunNow: func(ctx context.Context) (string, error) {
+				runChannelUpstreamModelUpdateTaskOnce()
+				return "upstream model update completed", nil
+			},
+		})
 
 		go func() {
 			common.SysLog(fmt.Sprintf("upstream model update task started: interval=%s", interval))
-			runChannelUpstreamModelUpdateTaskOnce()
+			nextRunAt := time.Now().Add(interval).Unix()
+			model.SetScheduledTaskState("channel_upstream_update", true, nextRunAt)
+			_, _ = model.ObserveScheduledTaskRun(context.Background(), "channel_upstream_update", model.ScheduledTaskTriggerBoot, nextRunAt, func(ctx context.Context) (string, error) {
+				runChannelUpstreamModelUpdateTaskOnce()
+				return "upstream model update completed", nil
+			})
 			ticker := time.NewTicker(interval)
 			defer ticker.Stop()
 			for range ticker.C {
-				runChannelUpstreamModelUpdateTaskOnce()
+				nextRunAt = time.Now().Add(interval).Unix()
+				model.SetScheduledTaskState("channel_upstream_update", true, nextRunAt)
+				_, _ = model.ObserveScheduledTaskRun(context.Background(), "channel_upstream_update", model.ScheduledTaskTriggerAuto, nextRunAt, func(ctx context.Context) (string, error) {
+					runChannelUpstreamModelUpdateTaskOnce()
+					return "upstream model update completed", nil
+				})
 			}
 		}()
 	})
