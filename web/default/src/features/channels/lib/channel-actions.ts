@@ -556,7 +556,7 @@ export async function handleDisableTagChannels(
 export async function handleDeleteAllDisabled(
   queryClient?: QueryClient,
   onSuccess?: (deletedCount: number) => void
-): Promise<void> {
+): Promise<number> {
   try {
     const response = await deleteDisabledChannels()
     if (response.success) {
@@ -566,11 +566,14 @@ export async function handleDeleteAllDisabled(
         })
       )
       queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
-      onSuccess?.(response.data || 0)
+      const deletedCount = response.data || 0
+      onSuccess?.(deletedCount)
+      return deletedCount
     }
   } catch (_error) {
     toast.error(i18next.t('Failed to delete disabled channels'))
   }
+  return 0
 }
 
 /**
@@ -579,21 +582,24 @@ export async function handleDeleteAllDisabled(
 export async function handleDeleteCredentialInvalidCodexChannels(
   queryClient?: QueryClient,
   onSuccess?: (deletedCount: number) => void
-): Promise<void> {
+): Promise<number> {
   try {
     const response = await deleteCredentialInvalidCodexChannels()
     if (response.success) {
+      const deletedCount = response.data || 0
       toast.success(
         i18next.t('{{count}} credential-invalid Codex channel(s) deleted', {
-          count: response.data || 0,
+          count: deletedCount,
         })
       )
       queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
-      onSuccess?.(response.data || 0)
+      onSuccess?.(deletedCount)
+      return deletedCount
     }
   } catch (_error) {
     toast.error(i18next.t('Failed to delete credential-invalid Codex channels'))
   }
+  return 0
 }
 
 /**

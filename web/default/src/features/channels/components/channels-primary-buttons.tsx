@@ -66,6 +66,8 @@ export function ChannelsPrimaryButtons() {
   const queryClient = useQueryClient()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showDeleteInvalidDialog, setShowDeleteInvalidDialog] = useState(false)
+  const [isDeletingDisabled, setIsDeletingDisabled] = useState(false)
+  const [isDeletingInvalid, setIsDeletingInvalid] = useState(false)
 
   const handleTagModeToggle = (checked: boolean) => {
     localStorage.setItem('enable-tag-mode', String(checked))
@@ -238,12 +240,18 @@ export function ChannelsPrimaryButtons() {
           'This will permanently delete all manually and automatically disabled channels. This action cannot be undone.'
         )}
         destructive
-        handleConfirm={() => {
-          handleDeleteAllDisabled(queryClient, (_count) => {
+        isLoading={isDeletingDisabled}
+        handleConfirm={async () => {
+          setIsDeletingDisabled(true)
+          try {
+            await handleDeleteAllDisabled(queryClient, (_count) => {
             // eslint-disable-next-line no-console
             console.log(`Deleted ${_count} channels`)
-          })
-          setShowDeleteDialog(false)
+            })
+          } finally {
+            setIsDeletingDisabled(false)
+            setShowDeleteDialog(false)
+          }
         }}
       />
 
@@ -255,12 +263,18 @@ export function ChannelsPrimaryButtons() {
           'This will permanently delete all Codex channels whose account status is credential invalid. This action cannot be undone.'
         )}
         destructive
-        handleConfirm={() => {
-          handleDeleteCredentialInvalidCodexChannels(queryClient, (_count) => {
+        isLoading={isDeletingInvalid}
+        handleConfirm={async () => {
+          setIsDeletingInvalid(true)
+          try {
+            await handleDeleteCredentialInvalidCodexChannels(queryClient, (_count) => {
             // eslint-disable-next-line no-console
             console.log(`Deleted ${_count} credential-invalid Codex channels`)
-          })
-          setShowDeleteInvalidDialog(false)
+            })
+          } finally {
+            setIsDeletingInvalid(false)
+            setShowDeleteInvalidDialog(false)
+          }
         }}
       />
     </>
