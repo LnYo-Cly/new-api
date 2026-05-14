@@ -172,6 +172,19 @@ export function ScheduledTasks() {
       void loadRuns(selectedTask.task_key)
     }, 1000)
   }
+  const handleRunTask = async (task: ScheduledTaskItem) => {
+    await runScheduledTaskNow(task.task_key)
+    toast.success(
+      t('Triggered {{name}}', {
+        name: renderTaskNameText(task.name, task.task_key),
+      })
+    )
+    setSelectedKey(task.task_key)
+    window.setTimeout(() => {
+      void loadTasks()
+      void loadRuns(task.task_key)
+    }, 1000)
+  }
 
   const runningCount = tasks.filter(
     (task: ScheduledTaskItem) => task.is_running
@@ -290,12 +303,13 @@ export function ScheduledTasks() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>{t('Task')}</TableHead>
-                        <TableHead>{t('Status')}</TableHead>
-                        <TableHead>{t('Interval')}</TableHead>
-                        <TableHead>{t('Last run')}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                      <TableHead>{t('Status')}</TableHead>
+                      <TableHead>{t('Interval')}</TableHead>
+                      <TableHead>{t('Last run')}</TableHead>
+                      <TableHead className='text-right'>{t('Action')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                       {tasks.map((task: ScheduledTaskItem) => (
                         <TableRow
                           key={task.task_key}
@@ -329,6 +343,20 @@ export function ScheduledTasks() {
                             {task.last_finished_at
                               ? formatTimestampToDate(task.last_finished_at)
                               : '-'}
+                          </TableCell>
+                          <TableCell className='text-right'>
+                            <Button
+                              type='button'
+                              size='sm'
+                              variant='outline'
+                              disabled={!task.can_manual_run}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                void handleRunTask(task)
+                              }}
+                            >
+                              {t('Execute')}
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
