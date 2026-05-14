@@ -37,10 +37,10 @@ func normalizeChatImageURLToString(v any) any {
 
 func normalizeChatFileData(v string) string {
 	trimmed := strings.TrimSpace(v)
-	if idx := strings.Index(trimmed, "base64,"); idx >= 0 {
-		return trimmed[idx+7:]
+	if strings.HasPrefix(trimmed, "data:") {
+		return trimmed
 	}
-	return trimmed
+	return "data:application/octet-stream;base64," + trimmed
 }
 
 func convertChatResponseFormatToResponsesText(reqFormat *dto.ResponseFormat) json.RawMessage {

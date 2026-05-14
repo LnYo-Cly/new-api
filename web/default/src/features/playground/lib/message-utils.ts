@@ -117,10 +117,53 @@ export function buildMessageContent(
     return text
   }
 
-  const extractFileData = (url: string) => {
+  const inferTextMimeType = (filename?: string) => {
+    const lower = filename?.toLowerCase() || ''
+    if (
+      lower.endsWith('.txt') ||
+      lower.endsWith('.md') ||
+      lower.endsWith('.log') ||
+      lower.endsWith('.json') ||
+      lower.endsWith('.yaml') ||
+      lower.endsWith('.yml') ||
+      lower.endsWith('.xml') ||
+      lower.endsWith('.html') ||
+      lower.endsWith('.css') ||
+      lower.endsWith('.js') ||
+      lower.endsWith('.ts') ||
+      lower.endsWith('.tsx') ||
+      lower.endsWith('.jsx') ||
+      lower.endsWith('.go') ||
+      lower.endsWith('.py') ||
+      lower.endsWith('.java') ||
+      lower.endsWith('.c') ||
+      lower.endsWith('.cpp') ||
+      lower.endsWith('.h') ||
+      lower.endsWith('.hpp') ||
+      lower.endsWith('.rs') ||
+      lower.endsWith('.sh') ||
+      lower.endsWith('.bat') ||
+      lower.endsWith('.cmd') ||
+      lower.endsWith('.ps1')
+    ) {
+      return 'text/plain'
+    }
+
+    return 'application/octet-stream'
+  }
+
+  const normalizeFileData = (
+    url: string,
+    filename?: string,
+    mediaType?: string
+  ) => {
     const trimmed = url.trim()
-    const match = trimmed.match(/^data:.*?;base64,(.+)$/)
-    return match?.[1] || trimmed
+    if (trimmed.startsWith('data:')) {
+      return trimmed
+    }
+
+    const mimeType = mediaType?.trim() || inferTextMimeType(filename)
+    return `data:${mimeType};base64,${trimmed}`
   }
 
   const parts: ContentPart[] = [
@@ -140,7 +183,11 @@ export function buildMessageContent(
             type: 'file',
             file: {
               filename: file.filename || 'attachment',
-              file_data: extractFileData(file.url!),
+              file_data: normalizeFileData(
+                file.url!,
+                file.filename,
+                file.mediaType
+              ),
             },
             mediaType: file.mediaType,
           } as const)
