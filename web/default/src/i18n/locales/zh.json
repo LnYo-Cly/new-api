@@ -4635,6 +4635,17 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
+    "Billing Type": "计费类型",
+    "Available Endpoint Types": "可用端点类型",
+    "Model Ratio": "模型倍率",
+    "Completion Ratio": "补全倍率",
+    "Ratio Info": "倍率信息",
+    "Input Price": "输入价格",
+    "Completion Price": "补全价格",
+    "Cached Read Price": "缓存读取价格",
+    "Cache Write Price": "缓存创建价格",
+    "Image Input Price": "图片输入价格",
+    "Audio Output Price": "音频输出价格",
     "Zoom": "缩放"
   }
 }

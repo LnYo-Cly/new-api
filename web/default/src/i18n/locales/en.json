@@ -4635,6 +4635,17 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
+    "Billing Type": "Billing Type",
+    "Available Endpoint Types": "Available Endpoint Types",
+    "Model Ratio": "Model Ratio",
+    "Completion Ratio": "Completion Ratio",
+    "Ratio Info": "Ratio Info",
+    "Input Price": "Input Price",
+    "Completion Price": "Completion Price",
+    "Cached Read Price": "Cached Read Price",
+    "Cache Write Price": "Cache Write Price",
+    "Image Input Price": "Image Input Price",
+    "Audio Output Price": "Audio Output Price",
     "Zoom": "Zoom"
   }
 }

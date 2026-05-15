@@ -4635,6 +4635,17 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
+    "Billing Type": "Тип тарификации",
+    "Available Endpoint Types": "Доступные типы эндпоинтов",
+    "Model Ratio": "Коэффициент модели",
+    "Completion Ratio": "Коэффициент завершения",
+    "Ratio Info": "Информация о коэффициентах",
+    "Input Price": "Цена входа",
+    "Completion Price": "Цена завершения",
+    "Cached Read Price": "Цена чтения из кэша",
+    "Cache Write Price": "Цена записи кэша",
+    "Image Input Price": "Цена входного изображения",
+    "Audio Output Price": "Цена аудиовыхода",
     "Zoom": "Zoom"
   }
 }

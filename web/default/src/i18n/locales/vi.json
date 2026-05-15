@@ -4635,6 +4635,17 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
+    "Billing Type": "Loại tính phí",
+    "Available Endpoint Types": "Loại endpoint khả dụng",
+    "Model Ratio": "Tỷ lệ mô hình",
+    "Completion Ratio": "Tỷ lệ hoàn thành",
+    "Ratio Info": "Thông tin tỷ lệ",
+    "Input Price": "Giá đầu vào",
+    "Completion Price": "Giá hoàn thành",
+    "Cached Read Price": "Giá đọc bộ nhớ đệm",
+    "Cache Write Price": "Giá ghi bộ nhớ đệm",
+    "Image Input Price": "Giá đầu vào hình ảnh",
+    "Audio Output Price": "Giá đầu ra âm thanh",
     "Zoom": "Zoom"
   }
 }

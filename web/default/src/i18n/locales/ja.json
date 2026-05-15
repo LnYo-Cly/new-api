@@ -4635,6 +4635,17 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
+    "Billing Type": "課金タイプ",
+    "Available Endpoint Types": "利用可能なエンドポイント種別",
+    "Model Ratio": "モデル倍率",
+    "Completion Ratio": "補完倍率",
+    "Ratio Info": "倍率情報",
+    "Input Price": "入力価格",
+    "Completion Price": "補完価格",
+    "Cached Read Price": "キャッシュ読み取り価格",
+    "Cache Write Price": "キャッシュ書き込み価格",
+    "Image Input Price": "画像入力価格",
+    "Audio Output Price": "音声出力価格",
     "Zoom": "ズーム"
   }
 }
