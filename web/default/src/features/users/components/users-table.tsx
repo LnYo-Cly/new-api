@@ -195,6 +195,7 @@ export function UsersTable({
     <DataTablePage
       table={table}
       columns={columns}
+      applyHeaderSize
       isLoading={isLoading}
       isFetching={isFetching}
       totalRows={data?.total || 0}

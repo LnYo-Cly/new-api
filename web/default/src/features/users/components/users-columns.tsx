@@ -542,6 +542,9 @@ export function useUsersColumns(): ColumnDef<User>[] {
         <DataTableColumnHeader column={column} title={t('Invite Info')} />
       ),
       cell: ({ row }) => <ReferralInfoCell user={row.original} t={t} />,
+      size: 280,
+      minSize: 280,
+      maxSize: 280,
       enableSorting: false,
       meta: { label: t('Invite Info'), mobileHidden: true },
     },
@@ -559,6 +562,9 @@ export function useUsersColumns(): ColumnDef<User>[] {
           />
         )
       },
+      size: 210,
+      minSize: 210,
+      maxSize: 210,
       enableSorting: false,
       meta: { label: t('Time'), mobileHidden: true },
     },
