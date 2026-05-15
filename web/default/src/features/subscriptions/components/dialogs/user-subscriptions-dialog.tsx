@@ -70,6 +70,7 @@ import {
 } from '@/lib/format'
 import {
   formatInternalQuota,
+  formatSubscriptionPrice,
   formatSubscriptionQuota,
 } from '../../lib'
 import type { PlanRecord, UserSubscriptionRecord } from '../../types'
@@ -282,8 +283,8 @@ export function UserSubscriptionsDialog(props: Props) {
                     value: String(p.plan.id),
                     label: (
                       <>
-                        {p.plan.title}($
-                        {Number(p.plan.price_amount || 0).toFixed(2)})
+                        {p.plan.title}(
+                        {formatSubscriptionPrice(p.plan.price_amount)})
                       </>
                     ),
                   })),
@@ -298,8 +299,8 @@ export function UserSubscriptionsDialog(props: Props) {
                   <SelectGroup>
                     {plans.map((p) => (
                       <SelectItem key={p.plan.id} value={String(p.plan.id)}>
-                        {p.plan.title} ($
-                        {Number(p.plan.price_amount || 0).toFixed(2)})
+                        {p.plan.title} (
+                        {formatSubscriptionPrice(p.plan.price_amount)})
                       </SelectItem>
                     ))}
                   </SelectGroup>

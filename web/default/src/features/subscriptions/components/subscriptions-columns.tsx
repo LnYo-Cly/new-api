@@ -26,6 +26,7 @@ import {
   formatDuration,
   formatInternalQuota,
   formatResetPeriod,
+  formatSubscriptionPrice,
   formatSubscriptionQuota,
 } from '../lib'
 import type { PlanRecord } from '../types'
@@ -79,7 +80,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         ),
         cell: ({ row }) => (
           <span className='font-semibold text-emerald-600'>
-            ${Number(row.original.plan.price_amount || 0).toFixed(2)}
+            {formatSubscriptionPrice(row.original.plan.price_amount)}
           </span>
         ),
         size: 100,

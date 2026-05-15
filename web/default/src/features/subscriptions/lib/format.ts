@@ -21,6 +21,13 @@ import dayjs from '@/lib/dayjs'
 import { formatQuota } from '@/lib/format'
 import type { SubscriptionPlan } from '../types'
 
+export function formatSubscriptionPrice(
+  amount: number | null | undefined
+): string {
+  const value = Number(amount || 0)
+  return `￥${value.toFixed(2)}`
+}
+
 export function formatDuration(
   plan: Partial<SubscriptionPlan>,
   t: TFunction
