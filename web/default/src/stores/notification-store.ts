@@ -24,14 +24,18 @@ interface NotificationState {
   lastReadNotice: string
   // Array of read announcement keys (id or content hash)
   readAnnouncementKeys: string[]
+  // Array of dismissed global announcement keys
+  dismissedGlobalAnnouncementKeys: string[]
   // Timestamp of last "Close Today" action
   closedUntilDate: string | null
 
   // Actions
   markNoticeRead: (noticeContent: string) => void
   markAnnouncementsRead: (keys: string[]) => void
+  dismissGlobalAnnouncement: (key: string) => void
   setClosedUntilDate: (date: string | null) => void
   isAnnouncementRead: (key: string) => boolean
+  isGlobalAnnouncementDismissed: (key: string) => boolean
   isNoticeClosed: () => boolean
 }
 
@@ -44,6 +48,7 @@ export const useNotificationStore = create<NotificationState>()(
     (set, get) => ({
       lastReadNotice: '',
       readAnnouncementKeys: [],
+      dismissedGlobalAnnouncementKeys: [],
       closedUntilDate: null,
 
       markNoticeRead: (noticeContent: string) => {
@@ -60,12 +65,25 @@ export const useNotificationStore = create<NotificationState>()(
         }))
       },
 
+      dismissGlobalAnnouncement: (key: string) => {
+        if (!key) return
+        set((state) => ({
+          dismissedGlobalAnnouncementKeys: [
+            ...new Set([...state.dismissedGlobalAnnouncementKeys, key]),
+          ],
+        }))
+      },
+
       setClosedUntilDate: (date: string | null) => {
         set({ closedUntilDate: date })
       },
 
       isAnnouncementRead: (key: string) => {
         return get().readAnnouncementKeys.includes(key)
+      },
+
+      isGlobalAnnouncementDismissed: (key: string) => {
+        return get().dismissedGlobalAnnouncementKeys.includes(key)
       },
 
       isNoticeClosed: () => {
@@ -81,6 +99,7 @@ export const useNotificationStore = create<NotificationState>()(
       partialize: (state) => ({
         lastReadNotice: state.lastReadNotice,
         readAnnouncementKeys: state.readAnnouncementKeys,
+        dismissedGlobalAnnouncementKeys: state.dismissedGlobalAnnouncementKeys,
         closedUntilDate: state.closedUntilDate,
       }),
     }

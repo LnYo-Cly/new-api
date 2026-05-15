@@ -44,6 +44,9 @@ func GetStatus(c *gin.Context) {
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
 
+	role, _ := c.Get("role")
+	authenticated := c.GetInt("id") > 0
+
 	passkeySetting := system_setting.GetPasskeySettings()
 	legalSetting := system_setting.GetLegalSettings()
 
@@ -123,7 +126,13 @@ func GetStatus(c *gin.Context) {
 		data["api_info"] = console_setting.GetApiInfo()
 	}
 	if cs.AnnouncementsEnabled {
-		data["announcements"] = console_setting.GetAnnouncements()
+		userRole := 0
+		if role != nil {
+			if roleInt, ok := role.(int); ok {
+				userRole = roleInt
+			}
+		}
+		data["announcements"] = console_setting.GetAnnouncementsForRole(userRole, authenticated)
 	}
 	if cs.FAQEnabled {
 		data["faq"] = console_setting.GetFAQ()

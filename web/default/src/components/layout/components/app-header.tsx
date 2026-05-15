@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useNotifications } from '@/hooks/use-notifications'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
 import { ConfigDrawer } from '@/components/config-drawer'
+import { GlobalAnnouncementDialog } from '@/components/global-announcement-dialog'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationButton } from '@/components/notification-button'
 import { NotificationDialog } from '@/components/notification-dialog'
@@ -142,16 +143,22 @@ export function AppHeader({
 
       {/* Notification Dialog */}
       {showNotifications && (
-        <NotificationDialog
-          open={notifications.dialogOpen}
-          onOpenChange={notifications.setDialogOpen}
-          activeTab={notifications.activeTab}
-          onTabChange={notifications.setActiveTab}
-          notice={notifications.notice}
-          announcements={notifications.announcements}
-          loading={notifications.loading}
-          onCloseToday={notifications.closeToday}
-        />
+        <>
+          <NotificationDialog
+            open={notifications.dialogOpen}
+            onOpenChange={notifications.setDialogOpen}
+            activeTab={notifications.activeTab}
+            onTabChange={notifications.setActiveTab}
+            notice={notifications.notice}
+            announcements={notifications.announcements}
+            loading={notifications.loading}
+            onCloseToday={notifications.closeToday}
+          />
+          <GlobalAnnouncementDialog
+            announcement={notifications.activeGlobalAnnouncement}
+            onConfirmClose={notifications.dismissGlobalAnnouncement}
+          />
+        </>
       )}
     </>
   )

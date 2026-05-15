@@ -21,6 +21,7 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
+import { GlobalAnnouncementDialog } from '@/components/global-announcement-dialog'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
@@ -306,16 +307,22 @@ export function PublicHeader(props: PublicHeaderProps) {
 
       {/* Notification Dialog */}
       {showNotifications && (
-        <NotificationDialog
-          open={notifications.dialogOpen}
-          onOpenChange={notifications.setDialogOpen}
-          activeTab={notifications.activeTab}
-          onTabChange={notifications.setActiveTab}
-          notice={notifications.notice}
-          announcements={notifications.announcements}
-          loading={notifications.loading}
-          onCloseToday={notifications.closeToday}
-        />
+        <>
+          <NotificationDialog
+            open={notifications.dialogOpen}
+            onOpenChange={notifications.setDialogOpen}
+            activeTab={notifications.activeTab}
+            onTabChange={notifications.setActiveTab}
+            notice={notifications.notice}
+            announcements={notifications.announcements}
+            loading={notifications.loading}
+            onCloseToday={notifications.closeToday}
+          />
+          <GlobalAnnouncementDialog
+            announcement={notifications.activeGlobalAnnouncement}
+            onConfirmClose={notifications.dismissGlobalAnnouncement}
+          />
+        </>
       )}
     </>
   )

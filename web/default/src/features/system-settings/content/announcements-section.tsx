@@ -20,9 +20,15 @@ import { useEffect, useMemo, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Plus, Edit, Trash2, Save } from 'lucide-react'
+import { Eye, FilePenLine, Plus, Trash2, Save } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import type {
+  AnnouncementAudienceScope,
+  AnnouncementDisplayMode,
+  AnnouncementItem,
+  AnnouncementType,
+} from '@/lib/announcement-utils'
 import dayjs from '@/lib/dayjs'
 import {
   AlertDialog,
@@ -35,15 +41,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import {
   Form,
   FormControl,
@@ -63,26 +62,20 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Markdown } from '@/components/ui/markdown'
+import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { DateTimePicker } from '@/components/datetime-picker'
 import { StatusBadge } from '@/components/status-badge'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
-type Announcement = {
+type Announcement = AnnouncementItem & {
   id: number
-  content: string
   publishDate: string
-  type: 'default' | 'ongoing' | 'success' | 'warning' | 'error'
-  extra?: string
+  type: AnnouncementType
+  displayMode: AnnouncementDisplayMode
+  audienceScope: AnnouncementAudienceScope
 }
 
 type AnnouncementsSectionProps = {
@@ -97,6 +90,8 @@ const announcementSchema = z.object({
     .max(500, 'Content must be less than 500 characters'),
   publishDate: z.string().min(1, 'Publish date is required'),
   type: z.enum(['default', 'ongoing', 'success', 'warning', 'error']),
+  displayMode: z.enum(['silent', 'global']),
+  audienceScope: z.enum(['all', 'admins', 'users']),
   extra: z
     .string()
     .max(100, 'Extra must be less than 100 characters')
@@ -138,6 +133,17 @@ const typeOptions = [
   },
 ]
 
+const displayModeOptions = [
+  { value: 'silent', label: 'Silent Display' },
+  { value: 'global', label: 'Global Display' },
+] as const
+
+const audienceScopeOptions = [
+  { value: 'all', label: 'All Logged-in Users' },
+  { value: 'admins', label: 'Admins Only' },
+  { value: 'users', label: 'Users Only' },
+] as const
+
 export function AnnouncementsSection({
   enabled,
   data,
@@ -148,7 +154,6 @@ export function AnnouncementsSection({
   const [isEnabled, setIsEnabled] = useState(enabled)
   const [hasChanges, setHasChanges] = useState(false)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
-  const [showDialog, setShowDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [editingAnnouncement, setEditingAnnouncement] =
     useState<Announcement | null>(null)
@@ -160,6 +165,8 @@ export function AnnouncementsSection({
       content: '',
       publishDate: new Date().toISOString(),
       type: 'default',
+      displayMode: 'silent',
+      audienceScope: 'all',
       extra: '',
     },
   })
@@ -172,13 +179,38 @@ export function AnnouncementsSection({
           parsed.map((item, idx) => ({
             ...item,
             id: item.id || idx + 1,
+            displayMode: item.displayMode || 'silent',
+            audienceScope: item.audienceScope || 'all',
+            type: item.type || 'default',
           }))
         )
+        if (parsed.length > 0) {
+          const firstItem = parsed
+            .map((item, idx) => ({
+              ...item,
+              id: item.id || idx + 1,
+              displayMode: item.displayMode || 'silent',
+              audienceScope: item.audienceScope || 'all',
+              type: item.type || 'default',
+            }))[0] as Announcement
+          setEditingAnnouncement(firstItem)
+          form.reset({
+            content: firstItem.content,
+            publishDate: firstItem.publishDate,
+            type: firstItem.type,
+            displayMode: firstItem.displayMode,
+            audienceScope: firstItem.audienceScope,
+            extra: firstItem.extra || '',
+          })
+        } else {
+          setEditingAnnouncement(null)
+        }
       }
     } catch {
       setAnnouncements([])
+      setEditingAnnouncement(null)
     }
-  }, [data])
+  }, [data, form])
 
   useEffect(() => {
     setIsEnabled(enabled)
@@ -203,20 +235,22 @@ export function AnnouncementsSection({
       content: '',
       publishDate: new Date().toISOString(),
       type: 'default',
+      displayMode: 'silent',
+      audienceScope: 'all',
       extra: '',
     })
-    setShowDialog(true)
   }
 
-  const handleEdit = (announcement: Announcement) => {
+  const handleSelectAnnouncement = (announcement: Announcement) => {
     setEditingAnnouncement(announcement)
     form.reset({
       content: announcement.content,
       publishDate: announcement.publishDate,
       type: announcement.type,
+      displayMode: announcement.displayMode,
+      audienceScope: announcement.audienceScope,
       extra: announcement.extra || '',
     })
-    setShowDialog(true)
   }
 
   const handleDelete = (announcement: Announcement) => {
@@ -258,20 +292,31 @@ export function AnnouncementsSection({
   }
 
   const handleSubmitForm = (values: AnnouncementFormValues) => {
+    const normalizedValues: AnnouncementFormValues = {
+      ...values,
+      audienceScope: values.displayMode === 'global' ? values.audienceScope : 'all',
+    }
+
     if (editingAnnouncement) {
-      setAnnouncements((prev) =>
-        prev.map((item) =>
-          item.id === editingAnnouncement.id ? { ...item, ...values } : item
+      setAnnouncements((prev) => {
+        const next = prev.map((item) =>
+          item.id === editingAnnouncement.id
+            ? { ...item, ...normalizedValues }
+            : item
         )
-      )
+        const updated = next.find((item) => item.id === editingAnnouncement.id) || null
+        setEditingAnnouncement(updated)
+        return next
+      })
       toast.success(t('Announcement updated. Click "Save Settings" to apply.'))
     } else {
       const newId = Math.max(...announcements.map((item) => item.id), 0) + 1
-      setAnnouncements((prev) => [...prev, { id: newId, ...values }])
+      const newAnnouncement = { id: newId, ...normalizedValues }
+      setAnnouncements((prev) => [...prev, newAnnouncement])
+      setEditingAnnouncement(newAnnouncement)
       toast.success(t('Announcement added. Click "Save Settings" to apply.'))
     }
     setHasChanges(true)
-    setShowDialog(false)
   }
 
   const handleSaveAll = async () => {
@@ -318,6 +363,13 @@ export function AnnouncementsSection({
     return `${diffDays}d ago`
   }
 
+  const watchedContent = form.watch('content')
+  const watchedExtra = form.watch('extra')
+  const watchedDisplayMode = form.watch('displayMode')
+  const watchedAudienceScope = form.watch('audienceScope')
+  const watchedType = form.watch('type')
+  const watchedPublishDate = form.watch('publishDate')
+
   return (
     <SettingsSection
       title={t('Announcements')}
@@ -358,11 +410,17 @@ export function AnnouncementsSection({
           </div>
         </div>
 
-        <div className='rounded-md border'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-12'>
+        <div className='grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]'>
+          <Card className='overflow-hidden'>
+            <CardHeader className='pb-3'>
+              <div className='flex items-center justify-between gap-3'>
+                <div>
+                  <CardTitle>{t('Announcement Timeline')}</CardTitle>
+                  <p className='text-muted-foreground mt-1 text-sm'>
+                    {t('Browse publish history and select an announcement to edit.')}
+                  </p>
+                </div>
+                <div className='flex items-center gap-2'>
                   <Checkbox
                     checked={
                       selectedIds.length === announcements.length &&
@@ -370,248 +428,430 @@ export function AnnouncementsSection({
                     }
                     onCheckedChange={toggleSelectAll}
                   />
-                </TableHead>
-                <TableHead>{t('Content')}</TableHead>
-                <TableHead>{t('Publish Date')}</TableHead>
-                <TableHead>{t('Type')}</TableHead>
-                <TableHead>{t('Extra')}</TableHead>
-                <TableHead className='w-32'>{t('Actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+                  <span className='text-muted-foreground text-xs'>
+                    {t('Select All')}
+                  </span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className='space-y-3'>
               {sortedAnnouncements.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className='h-24 text-center'>
-                    {t(
-                      'No announcements yet. Click "Add Announcement" to create one.'
-                    )}
-                  </TableCell>
-                </TableRow>
+                <div className='text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm'>
+                  {t(
+                    'No announcements yet. Click "Add Announcement" to create one.'
+                  )}
+                </div>
               ) : (
-                sortedAnnouncements.map((announcement) => (
-                  <TableRow key={announcement.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.includes(announcement.id)}
-                        onCheckedChange={(checked) =>
-                          toggleSelectOne(announcement.id, checked as boolean)
-                        }
-                      />
-                    </TableCell>
-                    <TableCell
-                      className='max-w-xs truncate'
-                      title={announcement.content}
-                    >
-                      {announcement.content}
-                    </TableCell>
-                    <TableCell>
-                      <div className='flex flex-col gap-1'>
-                        <span className='text-sm font-medium'>
-                          {getRelativeTime(announcement.publishDate)}
-                        </span>
-                        <span className='text-muted-foreground text-xs'>
-                          {dayjs(announcement.publishDate).format(
-                            'YYYY-MM-DD HH:mm:ss'
+                sortedAnnouncements.map((announcement, index) => {
+                  const active = editingAnnouncement?.id === announcement.id
+                  return (
+                    <div key={announcement.id} className='relative pl-6'>
+                      <span className='bg-border absolute top-0 bottom-0 left-2 w-px' />
+                      <span className='bg-background absolute top-5 left-0.5 h-3 w-3 rounded-full border-2 border-current text-sky-500' />
+                      <button
+                        type='button'
+                        className={`w-full rounded-xl border p-4 text-left transition ${
+                          active
+                            ? 'border-primary bg-primary/5 shadow-sm'
+                            : 'hover:bg-muted/50'
+                        }`}
+                        onClick={() => handleSelectAnnouncement(announcement)}
+                      >
+                        <div className='mb-2 flex items-start justify-between gap-3'>
+                          <div className='space-y-2'>
+                            <div className='flex flex-wrap items-center gap-2'>
+                              <StatusBadge
+                                label={
+                                  typeOptions.find(
+                                    (opt) => opt.value === announcement.type
+                                  )?.label
+                                }
+                                variant={
+                                  typeOptions.find(
+                                    (opt) => opt.value === announcement.type
+                                  )?.badgeVariant ?? 'neutral'
+                                }
+                                copyable={false}
+                              />
+                              <StatusBadge
+                                label={t(
+                                  displayModeOptions.find(
+                                    (option) =>
+                                      option.value === announcement.displayMode
+                                  )?.label || 'Silent Display'
+                                )}
+                                variant='neutral'
+                                copyable={false}
+                              />
+                            </div>
+                            <div className='text-sm font-medium'>
+                              {dayjs(announcement.publishDate).format(
+                                'YYYY-MM-DD HH:mm:ss'
+                              )}
+                            </div>
+                            <div className='text-muted-foreground text-xs'>
+                              {getRelativeTime(announcement.publishDate)}
+                            </div>
+                          </div>
+                          <Checkbox
+                            checked={selectedIds.includes(announcement.id)}
+                            onCheckedChange={(checked) =>
+                              toggleSelectOne(announcement.id, checked as boolean)
+                            }
+                            onClick={(event) => event.stopPropagation()}
+                          />
+                        </div>
+                        <p className='line-clamp-3 text-sm'>{announcement.content}</p>
+                        <div className='text-muted-foreground mt-3 flex flex-wrap items-center gap-3 text-xs'>
+                          <span>
+                            {t('Audience Scope')}:{' '}
+                            {announcement.displayMode === 'global'
+                              ? t(
+                                  audienceScopeOptions.find(
+                                    (option) =>
+                                      option.value === announcement.audienceScope
+                                  )?.label || 'All Logged-in Users'
+                                )
+                              : '-'}
+                          </span>
+                          {announcement.extra && (
+                            <span className='line-clamp-1'>
+                              {t('Extra')}: {announcement.extra}
+                            </span>
                           )}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge
-                        label={
-                          typeOptions.find(
-                            (opt) => opt.value === announcement.type
-                          )?.label
-                        }
-                        variant={
-                          typeOptions.find(
-                            (opt) => opt.value === announcement.type
-                          )?.badgeVariant ?? 'neutral'
-                        }
-                        copyable={false}
-                      />
-                    </TableCell>
-                    <TableCell
-                      className='text-muted-foreground max-w-xs truncate'
-                      title={announcement.extra}
-                    >
-                      {announcement.extra || '-'}
-                    </TableCell>
-                    <TableCell>
-                      <div className='flex gap-2'>
-                        <Button
-                          onClick={() => handleEdit(announcement)}
-                          size='sm'
-                          variant='ghost'
-                        >
-                          <Edit className='h-4 w-4' />
-                        </Button>
-                        <Button
-                          onClick={() => handleDelete(announcement)}
-                          size='sm'
-                          variant='ghost'
-                        >
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                        </div>
+                      </button>
+                      {index < sortedAnnouncements.length - 1 && (
+                        <div className='h-3' />
+                      )}
+                    </div>
+                  )
+                })
               )}
-            </TableBody>
-          </Table>
+            </CardContent>
+          </Card>
+
+          <div className='grid gap-4'>
+            <Card>
+              <CardHeader className='pb-3'>
+                <div className='flex items-center justify-between gap-3'>
+                  <div>
+                    <CardTitle>
+                      {editingAnnouncement
+                        ? t('Edit Announcement')
+                        : t('Create Announcement')}
+                    </CardTitle>
+                    <p className='text-muted-foreground mt-1 text-sm'>
+                      {t('Create or update system announcements for the dashboard')}
+                    </p>
+                  </div>
+                  {editingAnnouncement && (
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={() => handleDelete(editingAnnouncement)}
+                    >
+                      <Trash2 className='mr-2 h-4 w-4' />
+                      {t('Delete')}
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit(handleSubmitForm)}
+                    className='space-y-4'
+                  >
+                    <FormField
+                      control={form.control}
+                      name='content'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Content')}</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder={t(
+                                'Enter announcement content (supports Markdown/HTML)'
+                              )}
+                              rows={6}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Maximum 500 characters. Supports Markdown and HTML.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className='grid gap-4 md:grid-cols-2'>
+                      <FormField
+                        control={form.control}
+                        name='publishDate'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Publish Date')}</FormLabel>
+                            <FormControl>
+                              <DateTimePicker
+                                value={
+                                  field.value ? new Date(field.value) : undefined
+                                }
+                                onChange={(date) =>
+                                  field.onChange(date ? date.toISOString() : '')
+                                }
+                                placeholder={t('Select publish date')}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name='type'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Type')}</FormLabel>
+                            <Select
+                              items={typeOptions.map((option) => ({
+                                value: option.value,
+                                label: (
+                                  <div className='flex items-center gap-2'>
+                                    <div
+                                      className={`h-3 w-3 rounded-full ${option.color}`}
+                                    />
+                                    {option.label}
+                                  </div>
+                                ),
+                              }))}
+                              onValueChange={field.onChange}
+                              value={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue
+                                    placeholder={t('Select announcement type')}
+                                  />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent alignItemWithTrigger={false}>
+                                <SelectGroup>
+                                  {typeOptions.map((option) => (
+                                    <SelectItem
+                                      key={option.value}
+                                      value={option.value}
+                                    >
+                                      <div className='flex items-center gap-2'>
+                                        <div
+                                          className={`h-3 w-3 rounded-full ${option.color}`}
+                                        />
+                                        {option.label}
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className='grid gap-4 md:grid-cols-2'>
+                      <FormField
+                        control={form.control}
+                        name='displayMode'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Display Mode')}</FormLabel>
+                            <Select
+                              items={displayModeOptions.map((option) => ({
+                                value: option.value,
+                                label: t(option.label),
+                              }))}
+                              onValueChange={field.onChange}
+                              value={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue
+                                    placeholder={t('Select display mode')}
+                                  />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent alignItemWithTrigger={false}>
+                                <SelectGroup>
+                                  {displayModeOptions.map((option) => (
+                                    <SelectItem
+                                      key={option.value}
+                                      value={option.value}
+                                    >
+                                      {t(option.label)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              {t(
+                                'Silent display only appears in the announcement list. Global display forces a dialog after login.'
+                              )}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name='audienceScope'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Audience Scope')}</FormLabel>
+                            <Select
+                              items={audienceScopeOptions.map((option) => ({
+                                value: option.value,
+                                label: t(option.label),
+                              }))}
+                              onValueChange={field.onChange}
+                              value={field.value}
+                              disabled={watchedDisplayMode !== 'global'}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue
+                                    placeholder={t('Select audience scope')}
+                                  />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent alignItemWithTrigger={false}>
+                                <SelectGroup>
+                                  {audienceScopeOptions.map((option) => (
+                                    <SelectItem
+                                      key={option.value}
+                                      value={option.value}
+                                    >
+                                      {t(option.label)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              {t(
+                                'Only selected logged-in users will receive the forced dialog.'
+                              )}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name='extra'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Extra Notes (Optional)')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t('Additional information')}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Optional supplementary information (max 100 characters)'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className='flex flex-wrap justify-end gap-2'>
+                      <Button type='button' variant='outline' onClick={handleAdd}>
+                        {t('Reset')}
+                      </Button>
+                      <Button type='submit'>
+                        <FilePenLine className='mr-2 h-4 w-4' />
+                        {editingAnnouncement ? t('Update') : t('Add')}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className='pb-3'>
+                <CardTitle className='flex items-center gap-2'>
+                  <Eye className='h-4 w-4' />
+                  {t('Live Preview')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                <div className='flex flex-wrap items-center gap-2'>
+                  <StatusBadge
+                    label={
+                      typeOptions.find((opt) => opt.value === watchedType)?.label
+                    }
+                    variant={
+                      typeOptions.find((opt) => opt.value === watchedType)
+                        ?.badgeVariant ?? 'neutral'
+                    }
+                    copyable={false}
+                  />
+                  <StatusBadge
+                    label={t(
+                      displayModeOptions.find(
+                        (option) => option.value === watchedDisplayMode
+                      )?.label || 'Silent Display'
+                    )}
+                    variant='neutral'
+                    copyable={false}
+                  />
+                  {watchedDisplayMode === 'global' && (
+                    <StatusBadge
+                      label={t(
+                        audienceScopeOptions.find(
+                          (option) => option.value === watchedAudienceScope
+                        )?.label || 'All Logged-in Users'
+                      )}
+                      variant='neutral'
+                      copyable={false}
+                    />
+                  )}
+                </div>
+                <div className='text-muted-foreground text-sm'>
+                  {watchedPublishDate
+                    ? dayjs(watchedPublishDate).format('YYYY-MM-DD HH:mm:ss')
+                    : '-'}
+                </div>
+                <Separator />
+                <div className='min-h-24 text-sm'>
+                  {watchedContent ? (
+                    <Markdown>{watchedContent}</Markdown>
+                  ) : (
+                    <span className='text-muted-foreground'>
+                      {t('Enter announcement content (supports Markdown/HTML)')}
+                    </span>
+                  )}
+                </div>
+                {watchedExtra && (
+                  <>
+                    <Separator />
+                    <div className='text-muted-foreground text-sm'>
+                      <Markdown>{watchedExtra}</Markdown>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
-
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className='max-w-2xl'>
-          <DialogHeader>
-            <DialogTitle>
-              {editingAnnouncement
-                ? t('Edit Announcement')
-                : t('Add Announcement')}
-            </DialogTitle>
-            <DialogDescription>
-              {t('Create or update system announcements for the dashboard')}
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(handleSubmitForm)}
-              className='space-y-4'
-            >
-              <FormField
-                control={form.control}
-                name='content'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Content')}</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder={t(
-                          'Enter announcement content (supports Markdown/HTML)'
-                        )}
-                        rows={4}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t('Maximum 500 characters. Supports Markdown and HTML.')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='publishDate'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Publish Date')}</FormLabel>
-                    <FormControl>
-                      <DateTimePicker
-                        value={field.value ? new Date(field.value) : undefined}
-                        onChange={(date) =>
-                          field.onChange(date ? date.toISOString() : '')
-                        }
-                        placeholder={t('Select publish date')}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t(
-                        'Date and time when this announcement should be displayed'
-                      )}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='type'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Type')}</FormLabel>
-                    <Select
-                      items={[
-                        ...typeOptions.map((option) => ({
-                          value: option.value,
-                          label: (
-                            <div className='flex items-center gap-2'>
-                              <div
-                                className={`h-3 w-3 rounded-full ${option.color}`}
-                              />
-                              {option.label}
-                            </div>
-                          ),
-                        })),
-                      ]}
-                      onValueChange={field.onChange}
-                      value={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue
-                            placeholder={t('Select announcement type')}
-                          />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent alignItemWithTrigger={false}>
-                        <SelectGroup>
-                          {typeOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              <div className='flex items-center gap-2'>
-                                <div
-                                  className={`h-3 w-3 rounded-full ${option.color}`}
-                                />
-                                {option.label}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='extra'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Extra Notes (Optional)')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t('Additional information')}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t(
-                        'Optional supplementary information (max 100 characters)'
-                      )}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={() => setShowDialog(false)}
-                >
-                  {t('Cancel')}
-                </Button>
-                <Button type='submit'>
-                  {editingAnnouncement ? t('Update') : t('Add')}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>

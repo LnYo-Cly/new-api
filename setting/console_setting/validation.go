@@ -1,13 +1,14 @@
 package console_setting
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 var (
@@ -24,7 +25,7 @@ var (
 
 func parseJSONArray(jsonStr string, typeName string) ([]map[string]interface{}, error) {
 	var list []map[string]interface{}
-	if err := json.Unmarshal([]byte(jsonStr), &list); err != nil {
+	if err := common.UnmarshalJsonStr(jsonStr, &list); err != nil {
 		return nil, fmt.Errorf("%s格式错误：%s", typeName, err.Error())
 	}
 	return list, nil
@@ -55,7 +56,9 @@ func getJSONList(jsonStr string) []map[string]interface{} {
 		return []map[string]interface{}{}
 	}
 	var list []map[string]interface{}
-	json.Unmarshal([]byte(jsonStr), &list)
+	if err := common.UnmarshalJsonStr(jsonStr, &list); err != nil {
+		return []map[string]interface{}{}
+	}
 	return list
 }
 
@@ -149,6 +152,12 @@ func validateAnnouncements(announcementsStr string) error {
 	validTypes := map[string]bool{
 		"default": true, "ongoing": true, "success": true, "warning": true, "error": true,
 	}
+	validDisplayModes := map[string]bool{
+		"": true, "silent": true, "global": true,
+	}
+	validAudienceScopes := map[string]bool{
+		"": true, "all": true, "admins": true, "users": true,
+	}
 	for i, ann := range list {
 		content, ok := ann["content"].(string)
 		if !ok || content == "" {
@@ -170,6 +179,18 @@ func validateAnnouncements(announcementsStr string) error {
 				if !validTypes[typeStr] {
 					return fmt.Errorf("第%d个公告的类型值不合法", i+1)
 				}
+			}
+		}
+		if mode, exists := ann["displayMode"]; exists {
+			modeStr, ok := mode.(string)
+			if !ok || !validDisplayModes[modeStr] {
+				return fmt.Errorf("第%d个公告的展示方式不合法", i+1)
+			}
+		}
+		if scope, exists := ann["audienceScope"]; exists {
+			scopeStr, ok := scope.(string)
+			if !ok || !validAudienceScopes[scopeStr] {
+				return fmt.Errorf("第%d个公告的展示范围不合法", i+1)
 			}
 		}
 		if len(content) > 500 {
@@ -228,6 +249,48 @@ func GetAnnouncements() []map[string]interface{} {
 		return getPublishTime(list[i]).After(getPublishTime(list[j]))
 	})
 	return list
+}
+
+func GetAnnouncementsForRole(role int, authenticated bool) []map[string]interface{} {
+	list := GetAnnouncements()
+	filtered := make([]map[string]interface{}, 0, len(list))
+
+	for _, item := range list {
+		displayMode, _ := item["displayMode"].(string)
+		audienceScope, _ := item["audienceScope"].(string)
+		if displayMode == "" {
+			displayMode = "silent"
+		}
+		if audienceScope == "" {
+			audienceScope = "all"
+		}
+
+		if displayMode == "global" {
+			if !authenticated {
+				continue
+			}
+			switch audienceScope {
+			case "admins":
+				if role < common.RoleAdminUser {
+					continue
+				}
+			case "users":
+				if role < common.RoleCommonUser || role >= common.RoleAdminUser {
+					continue
+				}
+			}
+		}
+
+		normalized := make(map[string]interface{}, len(item)+2)
+		for key, value := range item {
+			normalized[key] = value
+		}
+		normalized["displayMode"] = displayMode
+		normalized["audienceScope"] = audienceScope
+		filtered = append(filtered, normalized)
+	}
+
+	return filtered
 }
 
 func GetFAQ() []map[string]interface{} {
