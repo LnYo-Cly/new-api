@@ -50,6 +50,7 @@ import { useTranslation } from 'react-i18next';
 const { Text } = Typography;
 
 const defaultFormState = {
+  title: '',
   content: '',
   publishDate: new Date(),
   type: 'default',
@@ -127,6 +128,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
     setEditingAnnouncement(announcement);
     setAnnouncementForm({
       content: announcement.content || '',
+      title: announcement.title || '',
       publishDate: announcement.publishDate
         ? new Date(announcement.publishDate)
         : new Date(),
@@ -438,6 +440,9 @@ const SettingsAnnouncements = ({ options, refresh }) => {
                             onClick={(e) => e.stopPropagation()}
                           />
                         </div>
+                        {item.title ? (
+                          <div className='mt-2 font-semibold text-sm'>{item.title}</div>
+                        ) : null}
                         <div className='mt-2 font-semibold text-sm'>
                           {getRelativeTime(item.publishDate)}
                         </div>
@@ -484,6 +489,16 @@ const SettingsAnnouncements = ({ options, refresh }) => {
               </Text>
               <Divider margin='12px' />
               <Form layout='vertical'>
+                <Form.TextArea
+                  field='title'
+                  label={t('公告标题')}
+                  placeholder={t('请输入公告标题')}
+                  maxCount={120}
+                  value={announcementForm.title}
+                  onChange={(value) =>
+                    setAnnouncementForm((prev) => ({ ...prev, title: value }))
+                  }
+                />
                 <Form.TextArea
                   field='content'
                   label={t('公告内容')}
@@ -601,6 +616,11 @@ const SettingsAnnouncements = ({ options, refresh }) => {
                   : '-'}
               </div>
               <Divider margin='12px' />
+              {announcementForm.title ? (
+                <div className='text-base font-semibold mb-3'>
+                  {announcementForm.title}
+                </div>
+              ) : null}
               <div
                 style={{ minHeight: 120 }}
                 dangerouslySetInnerHTML={renderPreviewHtml(announcementForm.content)}

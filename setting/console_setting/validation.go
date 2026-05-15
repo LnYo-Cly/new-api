@@ -163,6 +163,16 @@ func validateAnnouncements(announcementsStr string) error {
 		if !ok || content == "" {
 			return fmt.Errorf("第%d个公告缺少内容字段", i+1)
 		}
+		if title, exists := ann["title"]; exists {
+			if titleStr, ok := title.(string); ok {
+				if len(titleStr) > 120 {
+					return fmt.Errorf("第%d个公告的标题长度不能超过120字符", i+1)
+				}
+				if err := checkDangerousContent(titleStr, i+1, "系统公告标题"); err != nil {
+					return err
+				}
+			}
+		}
 		publishDateAny, exists := ann["publishDate"]
 		if !exists {
 			return fmt.Errorf("第%d个公告缺少发布日期字段", i+1)
@@ -196,9 +206,17 @@ func validateAnnouncements(announcementsStr string) error {
 		if len(content) > 500 {
 			return fmt.Errorf("第%d个公告的内容长度不能超过500字符", i+1)
 		}
+		if err := checkDangerousContent(content, i+1, "系统公告内容"); err != nil {
+			return err
+		}
 		if extra, exists := ann["extra"]; exists {
 			if extraStr, ok := extra.(string); ok && len(extraStr) > 200 {
 				return fmt.Errorf("第%d个公告的说明长度不能超过200字符", i+1)
+			}
+			if extraStr, ok := extra.(string); ok {
+				if err := checkDangerousContent(extraStr, i+1, "系统公告说明"); err != nil {
+					return err
+				}
 			}
 		}
 	}

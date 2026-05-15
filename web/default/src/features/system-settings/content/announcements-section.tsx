@@ -84,6 +84,10 @@ type AnnouncementsSectionProps = {
 }
 
 const announcementSchema = z.object({
+  title: z
+    .string()
+    .max(120, 'Title must be less than 120 characters')
+    .optional(),
   content: z
     .string()
     .min(1, 'Content is required')
@@ -163,6 +167,7 @@ export function AnnouncementsSection({
     resolver: zodResolver(announcementSchema),
     defaultValues: {
       content: '',
+      title: '',
       publishDate: new Date().toISOString(),
       type: 'default',
       displayMode: 'silent',
@@ -179,6 +184,7 @@ export function AnnouncementsSection({
           parsed.map((item, idx) => ({
             ...item,
             id: item.id || idx + 1,
+            title: item.title || '',
             displayMode: item.displayMode || 'silent',
             audienceScope: item.audienceScope || 'all',
             type: item.type || 'default',
@@ -233,6 +239,7 @@ export function AnnouncementsSection({
     setEditingAnnouncement(null)
     form.reset({
       content: '',
+      title: '',
       publishDate: new Date().toISOString(),
       type: 'default',
       displayMode: 'silent',
@@ -245,6 +252,7 @@ export function AnnouncementsSection({
     setEditingAnnouncement(announcement)
     form.reset({
       content: announcement.content,
+      title: announcement.title || '',
       publishDate: announcement.publishDate,
       type: announcement.type,
       displayMode: announcement.displayMode,
@@ -485,6 +493,9 @@ export function AnnouncementsSection({
                               />
                             </div>
                             <div className='text-sm font-medium'>
+                              {announcement.title || t('Untitled Announcement')}
+                            </div>
+                            <div className='text-muted-foreground text-xs'>
                               {dayjs(announcement.publishDate).format(
                                 'YYYY-MM-DD HH:mm:ss'
                               )}
@@ -501,7 +512,9 @@ export function AnnouncementsSection({
                             onClick={(event) => event.stopPropagation()}
                           />
                         </div>
-                        <p className='line-clamp-3 text-sm'>{announcement.content}</p>
+                        <p className='line-clamp-3 text-sm'>
+                          {announcement.content}
+                        </p>
                         <div className='text-muted-foreground mt-3 flex flex-wrap items-center gap-3 text-xs'>
                           <span>
                             {t('Audience Scope')}:{' '}
@@ -563,6 +576,25 @@ export function AnnouncementsSection({
                     onSubmit={form.handleSubmit(handleSubmitForm)}
                     className='space-y-4'
                   >
+                    <FormField
+                      control={form.control}
+                      name='title'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Title')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t('Announcement title')}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t('Optional title displayed in lists and dialogs.')}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <FormField
                       control={form.control}
                       name='content'
@@ -831,6 +863,11 @@ export function AnnouncementsSection({
                 </div>
                 <Separator />
                 <div className='min-h-24 text-sm'>
+                  {form.watch('title') ? (
+                    <div className='mb-3 text-base font-semibold'>
+                      {form.watch('title')}
+                    </div>
+                  ) : null}
                   {watchedContent ? (
                     <Markdown>{watchedContent}</Markdown>
                   ) : (

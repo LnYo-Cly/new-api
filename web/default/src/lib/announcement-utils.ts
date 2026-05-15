@@ -11,6 +11,7 @@ export type AnnouncementAudienceScope = 'all' | 'admins' | 'users'
 
 export interface AnnouncementItem {
   id?: number
+  title?: string
   content: string
   publishDate?: string
   type?: AnnouncementType
@@ -40,6 +41,7 @@ export function getAnnouncementKey(item: AnnouncementItem): string {
   }
 
   const fingerprint = JSON.stringify({
+    title: (item.title || '').trim(),
     publishDate: item.publishDate || '',
     content: (item.content || '').trim(),
     extra: (item.extra || '').trim(),

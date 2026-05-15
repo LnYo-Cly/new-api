@@ -38,6 +38,9 @@ export function GlobalAnnouncementDialog({
           <>
             <ScrollArea className='max-h-[60vh] pr-4'>
               <div className='space-y-4'>
+                {announcement.title && (
+                  <div className='text-lg font-semibold'>{announcement.title}</div>
+                )}
                 {announcement.publishDate && (
                   <div className='text-muted-foreground text-xs'>
                     {formatDateTimeObject(new Date(announcement.publishDate))}
