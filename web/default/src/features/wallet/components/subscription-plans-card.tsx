@@ -56,6 +56,7 @@ import {
   formatDuration,
   formatInternalQuota,
   formatResetPeriod,
+  formatSubscriptionPrice,
 } from '@/features/subscriptions/lib'
 import type {
   PlanRecord,
@@ -536,7 +537,7 @@ export function SubscriptionPlansCard({
               const plan = p?.plan
               if (!plan) return null
               const totalAmount = Number(plan.total_amount || 0)
-              const price = Number(plan.price_amount || 0).toFixed(2)
+              const price = formatSubscriptionPrice(plan.price_amount)
               const isPopular = index === 0 && plans.length > 1
               const limit = Number(plan.max_purchase_per_user || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
@@ -590,7 +591,7 @@ export function SubscriptionPlansCard({
 
                     <div className='py-1'>
                       <span className='text-2xl font-semibold tracking-tight'>
-                        ${price}
+                        {price}
                       </span>
                     </div>
 
