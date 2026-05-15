@@ -26,6 +26,7 @@ import type {
   ManageUserAction,
   ManageUserQuotaPayload,
   ApiResponse,
+  UserReferralDetails,
 } from './types'
 
 // ============================================================================
@@ -61,6 +62,13 @@ export async function searchUsers(
  */
 export async function getUser(id: number): Promise<ApiResponse<User>> {
   const res = await api.get(`/api/user/${id}`)
+  return res.data
+}
+
+export async function getUserReferralDetails(
+  id: number
+): Promise<ApiResponse<UserReferralDetails>> {
+  const res = await api.get(`/api/user/${id}/referrals`)
   return res.data
 }
 

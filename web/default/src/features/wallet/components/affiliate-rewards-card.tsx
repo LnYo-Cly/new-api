@@ -118,7 +118,6 @@ export function AffiliateRewardsCard({
                 iconClassName='size-4'
                 tooltip={t('Copy referral link')}
                 aria-label={t('Copy referral link')}
-                disabled={!hasAffiliateLink}
               />
               {hasRewards && (
                 <Button

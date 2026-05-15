@@ -22,6 +22,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { MESSAGE_STATUS } from '../constants'
+import { getTextContent } from '../lib/message-utils'
 import type { Message } from '../types'
 
 interface MessageErrorProps {
@@ -42,8 +43,8 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
     return null
   }
 
-  const errorContent =
-    message.versions[0]?.content || 'An unknown error occurred'
+  const errorContent = getTextContent(message.versions[0]?.content || '')
+  const resolvedErrorContent = errorContent || 'An unknown error occurred'
 
   if (message.errorCode === 'model_price_error') {
     return (
@@ -51,7 +52,7 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
         <AlertTriangle className='text-orange-500' />
         <AlertTitle>{t('Model Price Not Configured')}</AlertTitle>
         <AlertDescription className='space-y-2'>
-          <p>{errorContent}</p>
+          <p>{resolvedErrorContent}</p>
           {isAdmin && (
             <Button
               variant='outline'
@@ -73,7 +74,7 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
     <Alert variant='destructive' className={className}>
       <AlertCircle />
       <AlertTitle>{t('Error')}</AlertTitle>
-      <AlertDescription>{errorContent}</AlertDescription>
+      <AlertDescription>{resolvedErrorContent}</AlertDescription>
     </Alert>
   )
 }

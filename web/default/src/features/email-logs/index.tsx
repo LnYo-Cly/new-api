@@ -160,7 +160,7 @@ export function EmailLogs() {
             <Select
               value={status}
               onValueChange={(value) => {
-                setStatus(value)
+                setStatus(value ?? ALL_FILTER)
                 setPage(1)
               }}
             >
@@ -178,7 +178,7 @@ export function EmailLogs() {
             <Select
               value={purpose}
               onValueChange={(value) => {
-                setPurpose(value)
+                setPurpose(value ?? ALL_FILTER)
                 setPage(1)
               }}
             >

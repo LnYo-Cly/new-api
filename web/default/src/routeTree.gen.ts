@@ -22,7 +22,6 @@ import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
 import { Route as ConsoleTopupRouteImport } from './routes/console/topup'
 import { Route as ConsoleLogRouteImport } from './routes/console/log'
 import { Route as AuthenticatedChat2linkRouteImport } from './routes/_authenticated/chat2link'
-import { Route as AuthenticatedScheduledTasksIndexRouteImport } from './routes/_authenticated/scheduled-tasks/index'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as errors500RouteImport } from './routes/(errors)/500'
 import { Route as errors404RouteImport } from './routes/(errors)/404'
@@ -31,6 +30,7 @@ import { Route as errors401RouteImport } from './routes/(errors)/401'
 import { Route as authSignUpRouteImport } from './routes/(auth)/sign-up'
 import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
 import { Route as authResetRouteImport } from './routes/(auth)/reset'
+import { Route as authRegisterRouteImport } from './routes/(auth)/register'
 import { Route as authOtpRouteImport } from './routes/(auth)/otp'
 import { Route as authOauthRouteImport } from './routes/(auth)/oauth'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
@@ -38,19 +38,20 @@ import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
-import { Route as AuthenticatedEmailLogsIndexRouteImport } from './routes/_authenticated/email-logs/index'
-import { Route as AuthenticatedWalletReferralRouteImport } from './routes/_authenticated/wallet/referral'
-import { Route as AuthenticatedUsersReferralsRouteImport } from './routes/_authenticated/users/referrals'
 import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authenticated/usage-logs/index'
 import { Route as AuthenticatedSystemSettingsIndexRouteImport } from './routes/_authenticated/system-settings/index'
 import { Route as AuthenticatedSubscriptionsIndexRouteImport } from './routes/_authenticated/subscriptions/index'
+import { Route as AuthenticatedScheduledTasksIndexRouteImport } from './routes/_authenticated/scheduled-tasks/index'
 import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/_authenticated/redemption-codes/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_authenticated/playground/index'
 import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenticated/models/index'
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
+import { Route as AuthenticatedEmailLogsIndexRouteImport } from './routes/_authenticated/email-logs/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
+import { Route as AuthenticatedWalletReferralRouteImport } from './routes/_authenticated/wallet/referral'
+import { Route as AuthenticatedUsersReferralsRouteImport } from './routes/_authenticated/users/referrals'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
 import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authenticated/models/$section'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
@@ -135,12 +136,6 @@ const AuthenticatedChat2linkRoute = AuthenticatedChat2linkRouteImport.update({
   path: '/chat2link',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedScheduledTasksIndexRoute =
-  AuthenticatedScheduledTasksIndexRouteImport.update({
-    id: '/scheduled-tasks/',
-    path: '/scheduled-tasks/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const errors503Route = errors503RouteImport.update({
   id: '/(errors)/503',
   path: '/503',
@@ -181,6 +176,11 @@ const authResetRoute = authResetRouteImport.update({
   path: '/reset',
   getParentRoute: () => authRouteRoute,
 } as any)
+const authRegisterRoute = authRegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => authRouteRoute,
+} as any)
 const authOtpRoute = authOtpRouteImport.update({
   id: '/otp',
   path: '/otp',
@@ -218,24 +218,6 @@ const AuthenticatedUsersIndexRoute = AuthenticatedUsersIndexRouteImport.update({
   path: '/users/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedEmailLogsIndexRoute =
-  AuthenticatedEmailLogsIndexRouteImport.update({
-    id: '/email-logs/',
-    path: '/email-logs/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedWalletReferralRoute =
-  AuthenticatedWalletReferralRouteImport.update({
-    id: '/wallet/referral',
-    path: '/wallet/referral',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedUsersReferralsRoute =
-  AuthenticatedUsersReferralsRouteImport.update({
-    id: '/users/referrals',
-    path: '/users/referrals',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedUsageLogsIndexRoute =
   AuthenticatedUsageLogsIndexRouteImport.update({
     id: '/usage-logs/',
@@ -252,6 +234,12 @@ const AuthenticatedSubscriptionsIndexRoute =
   AuthenticatedSubscriptionsIndexRouteImport.update({
     id: '/subscriptions/',
     path: '/subscriptions/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedScheduledTasksIndexRoute =
+  AuthenticatedScheduledTasksIndexRouteImport.update({
+    id: '/scheduled-tasks/',
+    path: '/scheduled-tasks/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedRedemptionCodesIndexRoute =
@@ -283,6 +271,12 @@ const AuthenticatedKeysIndexRoute = AuthenticatedKeysIndexRouteImport.update({
   path: '/keys/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedEmailLogsIndexRoute =
+  AuthenticatedEmailLogsIndexRouteImport.update({
+    id: '/email-logs/',
+    path: '/email-logs/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDashboardIndexRoute =
   AuthenticatedDashboardIndexRouteImport.update({
     id: '/dashboard/',
@@ -293,6 +287,18 @@ const AuthenticatedChannelsIndexRoute =
   AuthenticatedChannelsIndexRouteImport.update({
     id: '/channels/',
     path: '/channels/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedWalletReferralRoute =
+  AuthenticatedWalletReferralRouteImport.update({
+    id: '/wallet/referral',
+    path: '/wallet/referral',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedUsersReferralsRoute =
+  AuthenticatedUsersReferralsRouteImport.update({
+    id: '/users/referrals',
+    path: '/users/referrals',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedUsageLogsSectionRoute =
@@ -422,6 +428,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
   '/otp': typeof authOtpRoute
+  '/register': typeof authRegisterRoute
   '/reset': typeof authResetRoute
   '/sign-in': typeof authSignInRoute
   '/sign-up': typeof authSignUpRoute
@@ -431,7 +438,6 @@ export interface FileRoutesByFullPath {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/chat2link': typeof AuthenticatedChat2linkRoute
-  '/scheduled-tasks/': typeof AuthenticatedScheduledTasksIndexRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/oauth/$provider': typeof OauthProviderRoute
@@ -445,21 +451,22 @@ export interface FileRoutesByFullPath {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/users/referrals': typeof AuthenticatedUsersReferralsRoute
+  '/wallet/referral': typeof AuthenticatedWalletReferralRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
+  '/email-logs/': typeof AuthenticatedEmailLogsIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
   '/models/': typeof AuthenticatedModelsIndexRoute
   '/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/scheduled-tasks/': typeof AuthenticatedScheduledTasksIndexRoute
   '/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
   '/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
-  '/email-logs/': typeof AuthenticatedEmailLogsIndexRoute
-  '/users/referrals': typeof AuthenticatedUsersReferralsRoute
   '/wallet/': typeof AuthenticatedWalletIndexRoute
-  '/wallet/referral': typeof AuthenticatedWalletReferralRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
@@ -483,6 +490,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
   '/otp': typeof authOtpRoute
+  '/register': typeof authRegisterRoute
   '/reset': typeof authResetRoute
   '/sign-in': typeof authSignInRoute
   '/sign-up': typeof authSignUpRoute
@@ -492,7 +500,6 @@ export interface FileRoutesByTo {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/chat2link': typeof AuthenticatedChat2linkRoute
-  '/scheduled-tasks': typeof AuthenticatedScheduledTasksIndexRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/oauth/$provider': typeof OauthProviderRoute
@@ -506,21 +513,22 @@ export interface FileRoutesByTo {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/users/referrals': typeof AuthenticatedUsersReferralsRoute
+  '/wallet/referral': typeof AuthenticatedWalletReferralRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
+  '/email-logs': typeof AuthenticatedEmailLogsIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
   '/models': typeof AuthenticatedModelsIndexRoute
   '/playground': typeof AuthenticatedPlaygroundIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/scheduled-tasks': typeof AuthenticatedScheduledTasksIndexRoute
   '/subscriptions': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-settings': typeof AuthenticatedSystemSettingsIndexRoute
   '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
-  '/email-logs': typeof AuthenticatedEmailLogsIndexRoute
-  '/users/referrals': typeof AuthenticatedUsersReferralsRoute
   '/wallet': typeof AuthenticatedWalletIndexRoute
-  '/wallet/referral': typeof AuthenticatedWalletReferralRoute
   '/pricing/$modelId': typeof PricingModelIdIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
@@ -548,6 +556,7 @@ export interface FileRoutesById {
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
   '/(auth)/oauth': typeof authOauthRoute
   '/(auth)/otp': typeof authOtpRoute
+  '/(auth)/register': typeof authRegisterRoute
   '/(auth)/reset': typeof authResetRoute
   '/(auth)/sign-in': typeof authSignInRoute
   '/(auth)/sign-up': typeof authSignUpRoute
@@ -557,7 +566,6 @@ export interface FileRoutesById {
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
   '/_authenticated/chat2link': typeof AuthenticatedChat2linkRoute
-  '/_authenticated/scheduled-tasks/': typeof AuthenticatedScheduledTasksIndexRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/oauth/$provider': typeof OauthProviderRoute
@@ -571,21 +579,22 @@ export interface FileRoutesById {
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/_authenticated/users/referrals': typeof AuthenticatedUsersReferralsRoute
+  '/_authenticated/wallet/referral': typeof AuthenticatedWalletReferralRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
+  '/_authenticated/email-logs/': typeof AuthenticatedEmailLogsIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
   '/_authenticated/models/': typeof AuthenticatedModelsIndexRoute
   '/_authenticated/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
   '/_authenticated/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/_authenticated/scheduled-tasks/': typeof AuthenticatedScheduledTasksIndexRoute
   '/_authenticated/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/_authenticated/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
   '/_authenticated/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
-  '/_authenticated/email-logs/': typeof AuthenticatedEmailLogsIndexRoute
-  '/_authenticated/users/referrals': typeof AuthenticatedUsersReferralsRoute
   '/_authenticated/wallet/': typeof AuthenticatedWalletIndexRoute
-  '/_authenticated/wallet/referral': typeof AuthenticatedWalletReferralRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/_authenticated/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/_authenticated/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
@@ -612,6 +621,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/oauth'
     | '/otp'
+    | '/register'
     | '/reset'
     | '/sign-in'
     | '/sign-up'
@@ -621,7 +631,6 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/chat2link'
-    | '/scheduled-tasks/'
     | '/console/log'
     | '/console/topup'
     | '/oauth/$provider'
@@ -635,21 +644,22 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
+    | '/users/referrals'
+    | '/wallet/referral'
     | '/channels/'
     | '/dashboard/'
+    | '/email-logs/'
     | '/keys/'
     | '/models/'
     | '/playground/'
     | '/profile/'
     | '/redemption-codes/'
+    | '/scheduled-tasks/'
     | '/subscriptions/'
-      | '/system-settings/'
-      | '/usage-logs/'
-      | '/users/'
-      | '/email-logs/'
-      | '/users/referrals'
+    | '/system-settings/'
+    | '/usage-logs/'
+    | '/users/'
     | '/wallet/'
-    | '/wallet/referral'
     | '/pricing/$modelId/'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
@@ -673,6 +683,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/oauth'
     | '/otp'
+    | '/register'
     | '/reset'
     | '/sign-in'
     | '/sign-up'
@@ -682,7 +693,6 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/chat2link'
-    | '/scheduled-tasks'
     | '/console/log'
     | '/console/topup'
     | '/oauth/$provider'
@@ -696,21 +706,22 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
+    | '/users/referrals'
+    | '/wallet/referral'
     | '/channels'
     | '/dashboard'
+    | '/email-logs'
     | '/keys'
     | '/models'
     | '/playground'
     | '/profile'
     | '/redemption-codes'
+    | '/scheduled-tasks'
     | '/subscriptions'
-      | '/system-settings'
-      | '/usage-logs'
-      | '/users'
-      | '/email-logs'
-      | '/users/referrals'
+    | '/system-settings'
+    | '/usage-logs'
+    | '/users'
     | '/wallet'
-    | '/wallet/referral'
     | '/pricing/$modelId'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
@@ -737,6 +748,7 @@ export interface FileRouteTypes {
     | '/(auth)/forgot-password'
     | '/(auth)/oauth'
     | '/(auth)/otp'
+    | '/(auth)/register'
     | '/(auth)/reset'
     | '/(auth)/sign-in'
     | '/(auth)/sign-up'
@@ -746,7 +758,6 @@ export interface FileRouteTypes {
     | '/(errors)/500'
     | '/(errors)/503'
     | '/_authenticated/chat2link'
-    | '/_authenticated/scheduled-tasks/'
     | '/console/log'
     | '/console/topup'
     | '/oauth/$provider'
@@ -760,21 +771,22 @@ export interface FileRouteTypes {
     | '/_authenticated/errors/$error'
     | '/_authenticated/models/$section'
     | '/_authenticated/usage-logs/$section'
+    | '/_authenticated/users/referrals'
+    | '/_authenticated/wallet/referral'
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
+    | '/_authenticated/email-logs/'
     | '/_authenticated/keys/'
     | '/_authenticated/models/'
     | '/_authenticated/playground/'
     | '/_authenticated/profile/'
     | '/_authenticated/redemption-codes/'
+    | '/_authenticated/scheduled-tasks/'
     | '/_authenticated/subscriptions/'
-      | '/_authenticated/system-settings/'
-      | '/_authenticated/usage-logs/'
-      | '/_authenticated/users/'
-      | '/_authenticated/email-logs/'
-      | '/_authenticated/users/referrals'
+    | '/_authenticated/system-settings/'
+    | '/_authenticated/usage-logs/'
+    | '/_authenticated/users/'
     | '/_authenticated/wallet/'
-    | '/_authenticated/wallet/referral'
     | '/pricing/$modelId/'
     | '/_authenticated/system-settings/auth/$section'
     | '/_authenticated/system-settings/billing/$section'
@@ -906,13 +918,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChat2linkRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/scheduled-tasks/': {
-      id: '/_authenticated/scheduled-tasks/'
-      path: '/scheduled-tasks'
-      fullPath: '/scheduled-tasks/'
-      preLoaderRoute: typeof AuthenticatedScheduledTasksIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/(errors)/503': {
       id: '/(errors)/503'
       path: '/503'
@@ -969,6 +974,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authResetRouteImport
       parentRoute: typeof authRouteRoute
     }
+    '/(auth)/register': {
+      id: '/(auth)/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof authRegisterRouteImport
+      parentRoute: typeof authRouteRoute
+    }
     '/(auth)/otp': {
       id: '/(auth)/otp'
       path: '/otp'
@@ -1011,32 +1023,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWalletIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/wallet/referral': {
-      id: '/_authenticated/wallet/referral'
-      path: '/wallet/referral'
-      fullPath: '/wallet/referral'
-      preLoaderRoute: typeof AuthenticatedWalletReferralRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/users/': {
       id: '/_authenticated/users/'
       path: '/users'
       fullPath: '/users/'
       preLoaderRoute: typeof AuthenticatedUsersIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/email-logs/': {
-      id: '/_authenticated/email-logs/'
-      path: '/email-logs'
-      fullPath: '/email-logs/'
-      preLoaderRoute: typeof AuthenticatedEmailLogsIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/users/referrals': {
-      id: '/_authenticated/users/referrals'
-      path: '/users/referrals'
-      fullPath: '/users/referrals'
-      preLoaderRoute: typeof AuthenticatedUsersReferralsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/usage-logs/': {
@@ -1058,6 +1049,13 @@ declare module '@tanstack/react-router' {
       path: '/subscriptions'
       fullPath: '/subscriptions/'
       preLoaderRoute: typeof AuthenticatedSubscriptionsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/scheduled-tasks/': {
+      id: '/_authenticated/scheduled-tasks/'
+      path: '/scheduled-tasks'
+      fullPath: '/scheduled-tasks/'
+      preLoaderRoute: typeof AuthenticatedScheduledTasksIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/redemption-codes/': {
@@ -1095,6 +1093,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedKeysIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/email-logs/': {
+      id: '/_authenticated/email-logs/'
+      path: '/email-logs'
+      fullPath: '/email-logs/'
+      preLoaderRoute: typeof AuthenticatedEmailLogsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard/': {
       id: '/_authenticated/dashboard/'
       path: '/dashboard'
@@ -1107,6 +1112,20 @@ declare module '@tanstack/react-router' {
       path: '/channels'
       fullPath: '/channels/'
       preLoaderRoute: typeof AuthenticatedChannelsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/wallet/referral': {
+      id: '/_authenticated/wallet/referral'
+      path: '/wallet/referral'
+      fullPath: '/wallet/referral'
+      preLoaderRoute: typeof AuthenticatedWalletReferralRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/users/referrals': {
+      id: '/_authenticated/users/referrals'
+      path: '/users/referrals'
+      fullPath: '/users/referrals'
+      preLoaderRoute: typeof AuthenticatedUsersReferralsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/usage-logs/$section': {
@@ -1256,6 +1275,7 @@ interface authRouteRouteChildren {
   authForgotPasswordRoute: typeof authForgotPasswordRoute
   authOauthRoute: typeof authOauthRoute
   authOtpRoute: typeof authOtpRoute
+  authRegisterRoute: typeof authRegisterRoute
   authResetRoute: typeof authResetRoute
   authSignInRoute: typeof authSignInRoute
   authSignUpRoute: typeof authSignUpRoute
@@ -1266,6 +1286,7 @@ const authRouteRouteChildren: authRouteRouteChildren = {
   authForgotPasswordRoute: authForgotPasswordRoute,
   authOauthRoute: authOauthRoute,
   authOtpRoute: authOtpRoute,
+  authRegisterRoute: authRegisterRoute,
   authResetRoute: authResetRoute,
   authSignInRoute: authSignInRoute,
   authSignUpRoute: authSignUpRoute,
@@ -1336,53 +1357,53 @@ const AuthenticatedSystemSettingsRouteRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSystemSettingsRouteRoute: typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   AuthenticatedChat2linkRoute: typeof AuthenticatedChat2linkRoute
-  AuthenticatedScheduledTasksIndexRoute: typeof AuthenticatedScheduledTasksIndexRoute
   AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
+  AuthenticatedUsersReferralsRoute: typeof AuthenticatedUsersReferralsRoute
+  AuthenticatedWalletReferralRoute: typeof AuthenticatedWalletReferralRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
+  AuthenticatedEmailLogsIndexRoute: typeof AuthenticatedEmailLogsIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
   AuthenticatedModelsIndexRoute: typeof AuthenticatedModelsIndexRoute
   AuthenticatedPlaygroundIndexRoute: typeof AuthenticatedPlaygroundIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
   AuthenticatedRedemptionCodesIndexRoute: typeof AuthenticatedRedemptionCodesIndexRoute
+  AuthenticatedScheduledTasksIndexRoute: typeof AuthenticatedScheduledTasksIndexRoute
   AuthenticatedSubscriptionsIndexRoute: typeof AuthenticatedSubscriptionsIndexRoute
   AuthenticatedUsageLogsIndexRoute: typeof AuthenticatedUsageLogsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
-  AuthenticatedEmailLogsIndexRoute: typeof AuthenticatedEmailLogsIndexRoute
-  AuthenticatedUsersReferralsRoute: typeof AuthenticatedUsersReferralsRoute
   AuthenticatedWalletIndexRoute: typeof AuthenticatedWalletIndexRoute
-  AuthenticatedWalletReferralRoute: typeof AuthenticatedWalletReferralRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSystemSettingsRouteRoute:
     AuthenticatedSystemSettingsRouteRouteWithChildren,
   AuthenticatedChat2linkRoute: AuthenticatedChat2linkRoute,
-  AuthenticatedScheduledTasksIndexRoute: AuthenticatedScheduledTasksIndexRoute,
   AuthenticatedChatChatIdRoute: AuthenticatedChatChatIdRoute,
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
+  AuthenticatedUsersReferralsRoute: AuthenticatedUsersReferralsRoute,
+  AuthenticatedWalletReferralRoute: AuthenticatedWalletReferralRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
+  AuthenticatedEmailLogsIndexRoute: AuthenticatedEmailLogsIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
   AuthenticatedModelsIndexRoute: AuthenticatedModelsIndexRoute,
   AuthenticatedPlaygroundIndexRoute: AuthenticatedPlaygroundIndexRoute,
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
   AuthenticatedRedemptionCodesIndexRoute:
     AuthenticatedRedemptionCodesIndexRoute,
+  AuthenticatedScheduledTasksIndexRoute: AuthenticatedScheduledTasksIndexRoute,
   AuthenticatedSubscriptionsIndexRoute: AuthenticatedSubscriptionsIndexRoute,
   AuthenticatedUsageLogsIndexRoute: AuthenticatedUsageLogsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
-  AuthenticatedEmailLogsIndexRoute: AuthenticatedEmailLogsIndexRoute,
-  AuthenticatedUsersReferralsRoute: AuthenticatedUsersReferralsRoute,
   AuthenticatedWalletIndexRoute: AuthenticatedWalletIndexRoute,
-  AuthenticatedWalletReferralRoute: AuthenticatedWalletReferralRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

@@ -65,6 +65,7 @@ export const userSchema = z.object({
   aff_quota: z.number().optional(),
   aff_history_quota: z.number().optional(),
   inviter_id: z.number().optional(),
+  inviter_name: z.string().optional(),
   linux_do_id: z.string().optional(),
   status: userStatusSchema,
   role: userRoleSchema,
@@ -138,6 +139,21 @@ export interface ManageUserQuotaPayload {
   action: 'add_quota'
   mode: QuotaAdjustMode
   value: number
+}
+
+export interface UserReferralDetailItem {
+  id: number
+  username: string
+  display_name?: string
+  email?: string
+  created_at?: number
+  last_login_at?: number
+}
+
+export interface UserReferralDetails {
+  user_id: number
+  inviter_name?: string
+  invitees: UserReferralDetailItem[]
 }
 
 // ============================================================================

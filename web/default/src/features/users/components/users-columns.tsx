@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { formatQuota, formatTimestamp } from '@/lib/format'
@@ -33,6 +34,7 @@ import { StatusBadge, dotColorMap } from '@/components/status-badge'
 import { USER_STATUSES, USER_ROLES, isUserDeleted } from '../constants'
 import { type User, type UserActiveSubscription } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
+import { UserReferralDetailsDialog } from './dialogs/user-referral-details-dialog'
 
 function getSubscriptionPeriodLabel(
   subscription: UserActiveSubscription,
@@ -203,6 +205,91 @@ function TotalUsageCell({
         </div>
       </TooltipContent>
     </Tooltip>
+  )
+}
+
+function TimeInfoCell({
+  createdAt,
+  lastLoginAt,
+  t,
+}: {
+  createdAt?: number
+  lastLoginAt?: number
+  t: (key: string, options?: Record<string, unknown>) => string
+}) {
+  return (
+    <div className='min-w-[180px] rounded-xl border bg-background px-3 py-2'>
+      <div className='space-y-2'>
+        <div>
+          <div className='text-muted-foreground text-[11px]'>{t('Created At')}</div>
+          <div className='text-sm font-medium'>
+            {createdAt ? formatTimestamp(createdAt) : '-'}
+          </div>
+        </div>
+        <div className='border-border/70 border-t pt-2'>
+          <div className='text-muted-foreground text-[11px]'>{t('Last Login')}</div>
+          <div className='text-sm font-medium'>
+            {lastLoginAt ? formatTimestamp(lastLoginAt) : '-'}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ReferralInfoCell({
+  user,
+  t,
+}: {
+  user: User
+  t: (key: string, options?: Record<string, unknown>) => string
+}) {
+  const [open, setOpen] = useState(false)
+  const affCount = user.aff_count || 0
+  const affHistoryQuota = user.aff_history_quota || 0
+  const inviterName = user.inviter_name || ''
+
+  return (
+    <>
+      <button
+        type='button'
+        onClick={() => setOpen(true)}
+        className='hover:border-primary/40 hover:bg-muted/40 focus-visible:ring-ring min-w-[220px] rounded-xl border bg-background p-3 text-left transition outline-none focus-visible:ring-2'
+      >
+        <div className='grid grid-cols-3 gap-3'>
+          <div className='space-y-1'>
+            <div className='text-muted-foreground text-[11px]'>{t('Invited')}</div>
+            <div className='text-sm font-semibold tabular-nums'>{affCount}</div>
+          </div>
+          <div className='space-y-1'>
+            <div className='text-muted-foreground text-[11px]'>{t('Revenue')}</div>
+            <div className='text-sm font-semibold tabular-nums'>
+              {formatQuota(affHistoryQuota)}
+            </div>
+          </div>
+          <div className='space-y-1'>
+            <div className='text-muted-foreground text-[11px]'>{t('Inviter')}</div>
+            <div className='truncate text-sm font-semibold'>
+              {inviterName || (user.inviter_id ? '-' : t('No Inviter'))}
+            </div>
+          </div>
+        </div>
+        <div className='text-muted-foreground mt-2 flex items-center gap-1 text-xs'>
+          <span
+            className={cn('size-1.5 shrink-0 rounded-full', dotColorMap.neutral)}
+            aria-hidden='true'
+          />
+          {t('Click to view referral details')}
+        </div>
+      </button>
+
+      <UserReferralDetailsDialog
+        open={open}
+        onOpenChange={setOpen}
+        userId={user.id}
+        username={user.username}
+      />
+    </>
   )
 }
 
@@ -454,102 +541,26 @@ export function useUsersColumns(): ColumnDef<User>[] {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Invite Info')} />
       ),
-      cell: ({ row }) => {
-        const user = row.original
-        const affCount = user.aff_count || 0
-        const affHistoryQuota = user.aff_history_quota || 0
-        const inviterId = user.inviter_id || 0
-
-        return (
-          <div className='flex items-center gap-1.5 text-xs font-medium'>
-            <span
-              className={cn(
-                'size-1.5 shrink-0 rounded-full',
-                dotColorMap.neutral
-              )}
-              aria-hidden='true'
-            />
-            <Tooltip>
-              <TooltipTrigger
-                render={<span className='text-muted-foreground cursor-help' />}
-              >
-                {t('Invited')}: {affCount}
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className='text-xs'>{t('Number of users invited')}</p>
-              </TooltipContent>
-            </Tooltip>
-            <span className='text-muted-foreground/30'>·</span>
-            <Tooltip>
-              <TooltipTrigger
-                render={<span className='text-muted-foreground cursor-help' />}
-              >
-                {t('Revenue')}: {formatQuota(affHistoryQuota)}
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className='text-xs'>{t('Total invitation revenue')}</p>
-              </TooltipContent>
-            </Tooltip>
-            {inviterId > 0 && (
-              <>
-                <span className='text-muted-foreground/30'>·</span>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span className='text-muted-foreground cursor-help' />
-                    }
-                  >
-                    {t('Inviter')}: {inviterId}
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className='text-xs'>
-                      {t('Invited by user ID')} {inviterId}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </>
-            )}
-            {inviterId === 0 && (
-              <>
-                <span className='text-muted-foreground/30'>·</span>
-                <span className='text-muted-foreground'>{t('No Inviter')}</span>
-              </>
-            )}
-          </div>
-        )
-      },
+      cell: ({ row }) => <ReferralInfoCell user={row.original} t={t} />,
       enableSorting: false,
       meta: { label: t('Invite Info'), mobileHidden: true },
     },
     {
-      accessorKey: 'created_at',
+      id: 'time_info',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Created At')} />
+        <DataTableColumnHeader column={column} title={t('Time')} />
       ),
       cell: ({ row }) => {
-        const ts = row.getValue('created_at') as number | undefined
         return (
-          <span className='text-muted-foreground text-sm'>
-            {ts ? formatTimestamp(ts) : '-'}
-          </span>
+          <TimeInfoCell
+            createdAt={row.original.created_at}
+            lastLoginAt={row.original.last_login_at}
+            t={t}
+          />
         )
       },
-      meta: { label: t('Created At'), mobileHidden: true },
-    },
-    {
-      accessorKey: 'last_login_at',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Last Login')} />
-      ),
-      cell: ({ row }) => {
-        const ts = row.getValue('last_login_at') as number | undefined
-        return (
-          <span className='text-muted-foreground text-sm'>
-            {ts ? formatTimestamp(ts) : '-'}
-          </span>
-        )
-      },
-      meta: { label: t('Last Login'), mobileHidden: true },
+      enableSorting: false,
+      meta: { label: t('Time'), mobileHidden: true },
     },
     {
       id: 'actions',

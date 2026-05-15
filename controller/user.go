@@ -281,6 +281,32 @@ func SearchUsers(c *gin.Context) {
 	return
 }
 
+func GetUserReferralDetails(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	if _, err := model.GetUserById(id, false); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	inviterName, invitees, err := model.GetUserReferralDetails(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"user_id":      id,
+		"inviter_name": inviterName,
+		"invitees":     invitees,
+	})
+	return
+}
+
 func GetUser(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

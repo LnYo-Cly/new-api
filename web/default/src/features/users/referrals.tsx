@@ -24,8 +24,7 @@ function ReferralsContent() {
       subscription_balance: false,
       balance: false,
       total_usage: false,
-      created_at: false,
-      last_login_at: false,
+      time_info: false,
     }),
     []
   )
@@ -61,7 +60,7 @@ function ReferralsContent() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className='text-muted-foreground text-sm'>
-                  {t('Use the Invite Info column to review invitation count, referral revenue, and each user’s inviter ID.')}
+                  {t('Use the Invite Info column to review invitation count, referral revenue, and each user’s inviter.')}
                 </CardContent>
               </Card>
               <Card>

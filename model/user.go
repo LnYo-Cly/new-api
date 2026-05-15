@@ -52,7 +52,17 @@ type User struct {
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
 	CreatedAt        int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt      int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	InviterName      string         `json:"inviter_name,omitempty" gorm:"-"`
 	ActiveSubscriptions []UserActiveSubscriptionSummary `json:"active_subscriptions,omitempty" gorm:"-"`
+}
+
+type UserReferralDetailItem struct {
+	Id          int    `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+	CreatedAt   int64  `json:"created_at"`
+	LastLoginAt int64  `json:"last_login_at"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -225,6 +235,7 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	if err = AttachActiveSubscriptionSummaries(users); err != nil {
 		return nil, 0, err
 	}
+	AttachInviterNames(users)
 
 	return users, total, nil
 }
@@ -296,6 +307,7 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 	if err = AttachActiveSubscriptionSummaries(users); err != nil {
 		return nil, 0, err
 	}
+	AttachInviterNames(users)
 
 	return users, total, nil
 }
@@ -311,7 +323,85 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 	} else {
 		err = DB.Omit("password").First(&user, "id = ?", id).Error
 	}
+	if err == nil {
+		AttachInviterNames([]*User{&user})
+	}
 	return &user, err
+}
+
+func AttachInviterNames(users []*User) {
+	if len(users) == 0 {
+		return
+	}
+
+	inviterIDs := make([]int, 0)
+	seenIDs := make(map[int]struct{})
+	for _, user := range users {
+		if user == nil || user.InviterId <= 0 {
+			continue
+		}
+		if _, ok := seenIDs[user.InviterId]; ok {
+			continue
+		}
+		seenIDs[user.InviterId] = struct{}{}
+		inviterIDs = append(inviterIDs, user.InviterId)
+	}
+
+	if len(inviterIDs) == 0 {
+		return
+	}
+
+	var inviters []User
+	if err := DB.Select("id, username, display_name").Where("id IN ?", inviterIDs).Find(&inviters).Error; err != nil {
+		return
+	}
+
+	inviterNameMap := make(map[int]string, len(inviters))
+	for _, inviter := range inviters {
+		displayName := strings.TrimSpace(inviter.DisplayName)
+		if displayName == "" {
+			displayName = inviter.Username
+		}
+		inviterNameMap[inviter.Id] = displayName
+	}
+
+	for _, user := range users {
+		if user == nil || user.InviterId <= 0 {
+			continue
+		}
+		user.InviterName = inviterNameMap[user.InviterId]
+	}
+}
+
+func GetUserReferralDetails(userId int) (string, []UserReferralDetailItem, error) {
+	var user User
+	if err := DB.Select("id, username, display_name, inviter_id").First(&user, "id = ?", userId).Error; err != nil {
+		return "", nil, err
+	}
+
+	inviterName := ""
+	if user.InviterId > 0 {
+		var inviter User
+		if err := DB.Select("id, username, display_name").First(&inviter, "id = ?", user.InviterId).Error; err == nil {
+			inviterName = strings.TrimSpace(inviter.DisplayName)
+			if inviterName == "" {
+				inviterName = inviter.Username
+			}
+		}
+	}
+
+	invitees := make([]UserReferralDetailItem, 0)
+	err := DB.
+		Model(&User{}).
+		Select("id, username, display_name, email, created_at, last_login_at").
+		Where("inviter_id = ?", userId).
+		Order("created_at desc").
+		Find(&invitees).Error
+	if err != nil {
+		return inviterName, nil, err
+	}
+
+	return inviterName, invitees, nil
 }
 
 func GetUserIdByAffCode(affCode string) (int, error) {
