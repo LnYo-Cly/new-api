@@ -73,6 +73,8 @@ export type EmailLogsResponse = {
 export type SiteSettings = {
   'theme.frontend': string
   Notice: string
+  'console_setting.announcements': string
+  'console_setting.announcements_enabled': boolean
   SystemName: string
   Logo: string
   Footer: string

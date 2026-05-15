@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { AnnouncementsSection } from '../content/announcements-section'
 import { SystemInfoSection } from '../general/system-info-section'
 import {
   parseHeaderNavModules,
@@ -24,7 +25,6 @@ import {
   serializeSidebarModulesAdmin,
 } from '../maintenance/config'
 import { HeaderNavigationSection } from '../maintenance/header-navigation-section'
-import { NoticeSection } from '../maintenance/notice-section'
 import { SidebarModulesSection } from '../maintenance/sidebar-modules-section'
 import type { SiteSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
@@ -57,9 +57,12 @@ const SITE_SECTIONS = [
   {
     id: 'notice',
     titleKey: 'System Notice',
-    descriptionKey: 'Configure system maintenance notice',
+    descriptionKey: 'Configure system announcements',
     build: (settings: SiteSettings) => (
-      <NoticeSection defaultValue={settings.Notice ?? ''} />
+      <AnnouncementsSection
+        enabled={settings['console_setting.announcements_enabled']}
+        data={settings['console_setting.announcements']}
+      />
     ),
   },
   {
