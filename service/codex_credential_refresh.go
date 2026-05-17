@@ -113,7 +113,7 @@ func ShouldRefreshCodexCredentialAfterRelayError(channel *model.Channel, err *ty
 	if channel.Type != constant.ChannelTypeCodex || channel.ChannelInfo.IsMultiKey {
 		return false
 	}
-	if err.StatusCode == http.StatusUnauthorized {
+	if err.StatusCode == http.StatusUnauthorized || err.StatusCode == http.StatusForbidden {
 		return true
 	}
 	return IsCodexCredentialInvalidError(err)

@@ -380,10 +380,16 @@ func ClassifyCodexRelayFailure(err *types.NewAPIError) CodexRelayFailureAction {
 		Message:   message,
 	}
 
-	if IsCodexCredentialInvalidError(err) || statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden {
+	credentialInvalid := IsCodexCredentialInvalidError(err)
+	if credentialInvalid || statusCode == http.StatusUnauthorized {
 		action.Retryable = true
 		action.Status = CodexAccountStatusCredentialInvalid
-		action.Disable = IsCodexCredentialInvalidError(err)
+		action.Disable = credentialInvalid
+		return action
+	}
+	if statusCode == http.StatusForbidden {
+		action.Retryable = true
+		action.Status = CodexAccountStatusQueryFailed
 		return action
 	}
 	if statusCode == http.StatusTooManyRequests || isCodexLimitMessage(message) {

@@ -170,9 +170,6 @@ func GetCodexChannelUsage(c *gin.Context) {
 		message = fmt.Sprintf("upstream status: %d", statusCode)
 	}
 	summary := service.BuildCodexAccountStatusSummary(statusCode, payload, message)
-	if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden {
-		summary.Status = service.CodexAccountStatusCredentialInvalid
-	}
 	persistSummary(summary)
 	resp := gin.H{
 		"success":         ok,

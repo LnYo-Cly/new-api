@@ -68,8 +68,10 @@ func NormalizeCodexAccountStatus(status string) string {
 
 func NewCodexAccountQueryFailedSummary(statusCode int, message string) CodexAccountStatusSummary {
 	status := CodexAccountStatusQueryFailed
-	if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden ||
-		IsCodexCredentialInvalidError(fmt.Errorf("%s", message)) {
+	messageHasCredentialSignal := IsCodexCredentialInvalidError(fmt.Errorf("%s", message))
+	if statusCode == http.StatusBadRequest || statusCode == http.StatusUnauthorized ||
+		(statusCode == http.StatusForbidden && messageHasCredentialSignal) ||
+		messageHasCredentialSignal {
 		status = CodexAccountStatusCredentialInvalid
 	} else if statusCode == http.StatusTooManyRequests {
 		status = CodexAccountStatusLimited
@@ -121,7 +123,8 @@ func BuildCodexAccountStatusSummary(statusCode int, payload any, fallbackMessage
 	summary.AccountID = getStringFromMap(raw, "account_id")
 	summary.UserID = getStringFromMap(raw, "user_id")
 
-	if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden {
+	if statusCode == http.StatusUnauthorized ||
+		(statusCode == http.StatusForbidden && codexStatusPayloadHasCredentialInvalidSignal(payload, summary.Message)) {
 		summary.Status = CodexAccountStatusCredentialInvalid
 		summary.Message = firstNonEmpty(summary.Message, fmt.Sprintf("upstream status: %d", statusCode))
 		return summary
@@ -165,6 +168,10 @@ func BuildCodexAccountStatusSummary(statusCode int, payload any, fallbackMessage
 	summary.Status = CodexAccountStatusAvailable
 	summary.Message = ""
 	return summary
+}
+
+func codexStatusPayloadHasCredentialInvalidSignal(payload any, fallbackMessage string) bool {
+	return containsCodexCredentialInvalidSignal(strings.TrimSpace(fallbackMessage + " " + common.GetJsonString(payload)))
 }
 
 func ReadCodexAccountStatusFromOtherInfo(otherInfo string) (CodexAccountStatusSummary, bool) {

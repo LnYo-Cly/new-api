@@ -18,6 +18,14 @@ func TestIsCodexCredentialInvalidError(t *testing.T) {
 		StatusCode: http.StatusUnauthorized,
 		Message:    "invalid_grant",
 	}))
+	require.True(t, IsCodexCredentialInvalidError(&CodexOAuthRefreshError{
+		StatusCode: http.StatusForbidden,
+		Message:    "refresh_token_reused",
+	}))
+	require.False(t, IsCodexCredentialInvalidError(&CodexOAuthRefreshError{
+		StatusCode: http.StatusForbidden,
+		Message:    "permission denied",
+	}))
 	require.True(t, IsCodexCredentialInvalidError(errors.New("codex channel: access_token is required")))
 	require.True(t, IsCodexCredentialInvalidError(errors.New("No access token available")))
 	require.False(t, IsCodexCredentialInvalidError(errors.New("upstream request failed")))
@@ -38,6 +46,10 @@ func TestShouldRefreshCodexCredentialAfterRelayError(t *testing.T) {
 	require.False(t, ShouldRefreshCodexCredentialAfterRelayError(
 		codexChannel,
 		types.NewOpenAIError(errors.New("upstream request failed"), types.ErrorCodeBadResponseStatusCode, http.StatusBadGateway),
+	))
+	require.True(t, ShouldRefreshCodexCredentialAfterRelayError(
+		codexChannel,
+		types.NewOpenAIError(errors.New("permission denied"), types.ErrorCodeBadResponseStatusCode, http.StatusForbidden),
 	))
 	require.False(t, ShouldRefreshCodexCredentialAfterRelayError(
 		&model.Channel{Type: constant.ChannelTypeOpenAI},
@@ -98,4 +110,32 @@ func TestClassifyCodexRelayFailure_RetryableAccountPoolErrors(t *testing.T) {
 	))
 	require.True(t, tempUnavailable.Retryable)
 	require.Equal(t, CodexAccountStatusTempUnavailable, tempUnavailable.Status)
+
+	forbidden := ClassifyCodexRelayFailure(types.NewOpenAIError(
+		errors.New("permission denied"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusForbidden,
+	))
+	require.True(t, forbidden.Retryable)
+	require.Equal(t, CodexAccountStatusQueryFailed, forbidden.Status)
+	require.False(t, forbidden.Disable)
+}
+
+func TestBuildCodexAccountStatusSummary_ForbiddenNeedsCredentialSignal(t *testing.T) {
+	t.Parallel()
+
+	genericForbidden := BuildCodexAccountStatusSummary(http.StatusForbidden, map[string]interface{}{
+		"error": map[string]interface{}{
+			"message": "permission denied",
+		},
+	}, "upstream status: 403")
+	require.Equal(t, CodexAccountStatusQueryFailed, genericForbidden.Status)
+
+	credentialForbidden := BuildCodexAccountStatusSummary(http.StatusForbidden, map[string]interface{}{
+		"error": map[string]interface{}{
+			"message": "Your refresh token has already been used",
+			"code":    "refresh_token_reused",
+		},
+	}, "upstream status: 403")
+	require.Equal(t, CodexAccountStatusCredentialInvalid, credentialForbidden.Status)
 }

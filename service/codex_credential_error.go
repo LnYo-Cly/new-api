@@ -45,11 +45,16 @@ func IsCodexCredentialInvalidError(err error) bool {
 
 	var refreshErr *CodexOAuthRefreshError
 	if errors.As(err, &refreshErr) {
-		switch refreshErr.StatusCode {
-		case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden:
+		if containsCodexCredentialInvalidSignal(refreshErr.Message + " " + refreshErr.Body) {
 			return true
 		}
-		return containsCodexCredentialInvalidSignal(refreshErr.Message + " " + refreshErr.Body)
+		switch refreshErr.StatusCode {
+		case http.StatusBadRequest, http.StatusUnauthorized:
+			return true
+		case http.StatusForbidden:
+			return false
+		}
+		return false
 	}
 
 	return containsCodexCredentialInvalidSignal(err.Error())
